@@ -39,6 +39,17 @@ func parseChargerResponse(in *response) (chargeState, error) {
 				return charging, nil
 			}
 		}
+	case "$FS":
+		{
+			parts := strings.Split(in.Ret, " ")
+			if len(parts) == 0 {
+				return unknown, errors.New("response did not have the expected number of parts")
+			}
+			if !strings.HasPrefix(parts[0], "$OK") {
+				return unknown, fmt.Errorf("response was not $OK, was: %v", parts[0])
+			}
+			return sleeping, nil
+		}
 	}
 	return 0, fmt.Errorf("unknown response command: %v", in.Cmd)
 }
@@ -76,12 +87,12 @@ func newopenevse(address string) (*openevse, error) {
 	return o, nil
 }
 
-func (o *openevse) getChargerStatus() (chargeState, error) {
+func (o *openevse) sendCommand(c command) (chargeState, error) {
 	u := o.baseURL
 	u.Path = "/r"
 	v := o.baseURL.Query()
 	v.Set("json", "1")
-	v.Set("rapi", query.command())
+	v.Set("rapi", c.command())
 	u.RawQuery = v.Encode()
 	//log.Println("Query:", u.String())
 	resp, err := o.client.Get(u.String())
@@ -94,8 +105,4 @@ func (o *openevse) getChargerStatus() (chargeState, error) {
 		return unknown, err
 	}
 	return parseChargerResponse(&r)
-}
-
-func (o *openevse) setCharging() {
-
 }

@@ -38,12 +38,19 @@ func (m *Monitor) run() {
 		select {
 		case <-t.C:
 			log.Println("Current Charge:", m.currCharge)
-			st, err := m.charger.getChargerStatus()
+			st, err := m.charger.sendCommand(query)
 			if err != nil {
 				log.Println("Error querying charger", err)
 				continue
 			}
 			log.Println(st)
+			if st == charging && m.currCharge >= 780 {
+				log.Println("Reached charge limit, stopping charging")
+				_, err := m.charger.sendCommand(sleep)
+				if err != nil {
+					log.Println("Error sleeping charger", err)
+				}
+			}
 		}
 	}
 }
