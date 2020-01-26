@@ -1,0 +1,17 @@
+version: "3.7"
+
+services:
+  cortex:
+    image: slimbean/cortex:latest
+    command: "-config.file=/etc/cortex/config.yaml -target=ingester -server.http-listen-port=8002 -server.grpc-listen-port=9002"
+    ports:
+      - 8002:8002
+      - 9002:9002
+    volumes:
+      - "/home/ubuntu/cortex/config.yaml:/etc/cortex/config.yaml"
+
+
+#  leafbus:
+#    image: "slimbean/leafbus:latest"
+#    #restart: "always"
+#    network_mode: "host"

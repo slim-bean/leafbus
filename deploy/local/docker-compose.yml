@@ -1,0 +1,17 @@
+version: "3.7"
+
+services:
+  cortex:
+    image: cortexproject/cortex:master-dd77369a
+    command: "-config.file=/etc/cortex/config.yaml -target=querier -server.http-listen-port=8002 -querier.query-ingesters-within=-10s"
+    ports:
+      - 8002:8002
+    volumes:
+      - "./config.yaml:/etc/cortex/config.yaml"
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+
+
+

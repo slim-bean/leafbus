@@ -10,6 +10,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/ingester/client"
 	"github.com/cortexproject/cortex/pkg/util/grpcclient"
 	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/weaveworks/common/user"
 )
 
 var (
@@ -21,6 +22,11 @@ var (
 				Labels:  make([]labels.Labels, 0, batchSize),
 				Samples: make([]client.Sample, 0, batchSize),
 			}
+		},
+	}
+	packetsPool = sync.Pool{
+		New: func() interface{} {
+			return make([]*packet, 0, batchSize)
 		},
 	}
 	packetPool = sync.Pool{
@@ -39,7 +45,7 @@ var (
 			}
 		},
 	}
-	labelsPool = sync.Pool{
+	labelPool = sync.Pool{
 		New: func() interface{} {
 			return labels.Label{}
 		},
@@ -59,7 +65,7 @@ type packet struct {
 type Cortex struct {
 	cortex client.HealthAndIngesterClient
 	data   chan *packet
-	active *TimeSeries
+	active []*packet
 	actMtx sync.Mutex
 }
 
@@ -76,7 +82,7 @@ func NewCortex(address string) (*Cortex, error) {
 	c := &Cortex{
 		cortex: clt,
 		data:   make(chan *packet, 100),
-		active: timeSeriesPool.Get().(*TimeSeries),
+		active: packetsPool.Get().([]*packet),
 	}
 	go c.run()
 	return c, nil
@@ -87,46 +93,65 @@ func (c *Cortex) run() {
 		select {
 		case p := <-c.data:
 			c.actMtx.Lock()
-			c.active.Labels = append(c.active.Labels, p.labels)
-			c.active.Samples = append(c.active.Samples, p.sample)
-			p.labels = p.labels[:0]
-			packetPool.Put(p)
-			if len(c.active.Labels) == batchSize {
-				wr := client.ToWriteRequest(c.active.Labels, c.active.Samples, client.API)
+			c.active = append(c.active, p)
+			if len(c.active) == batchSize {
 				sending := c.active
-				c.active = timeSeriesPool.Get().(*TimeSeries)
-				go c.push(sending, wr)
+				c.active = packetsPool.Get().([]*packet)
+				go c.push(sending)
 			}
 			c.actMtx.Unlock()
 		}
 	}
 }
 
-func (c *Cortex) push(ts *TimeSeries, wr *client.WriteRequest) {
+func (c *Cortex) push(ps []*packet) {
+	ts := timeSeriesPool.Get().(*TimeSeries)
+	for i := range ps {
+		ts.Labels = append(ts.Labels, ps[i].labels)
+		ts.Samples = append(ts.Samples, ps[i].sample)
+	}
+	wr := client.ToWriteRequest(ts.Labels, ts.Samples, client.API)
 	ctx := context.Background()
 	ctx, cancel := context.WithTimeout(ctx, time.Second*5)
 	defer cancel()
-	//_, err := c.cortex.Push(ctx, wr)
-	//if err != nil {
-	//	log.Println("Failed to end series to ingester: ", err)
-	//}
-	log.Printf("Sending batch to cortex: %v\n", wr.Timeseries)
+	log.Printf("Sending batch to cortex\n")
+	ctx = user.InjectOrgID(ctx, "leaf")
+	ctx = user.InjectUserID(ctx, "fake")
+	_, err := c.cortex.Push(ctx, wr)
+	if err != nil {
+		log.Println("Failed to end series to ingester: ", err)
+		log.Printf("Timeseries: %v", ts)
+		log.Printf("Samples: %v", wr.Timeseries)
+	}
 	client.ReuseSlice(wr.Timeseries)
 	reuseTimeseries(ts)
+	reusePackets(ps)
 }
 
 // ReuseTimeseries puts the timeseries back into a sync.Pool for reuse.
 func reuseTimeseries(ts *TimeSeries) {
-	for i := range ts.Labels {
-		for j := range ts.Labels[i] {
-			labelsPool.Put(ts.Labels[i][j])
-		}
-		ts.Labels[i] = ts.Labels[i][:0]
-	}
 	ts.Labels = ts.Labels[:0]
-	for i := range ts.Samples {
-		samplePool.Put(ts.Samples[i])
-	}
 	ts.Samples = ts.Samples[:0]
 	timeSeriesPool.Put(ts)
+}
+
+func reusePackets(ps []*packet) {
+	// For each packet
+	for i := range ps {
+		// For each label in the packets label slice
+		for j := range ps[i].labels {
+			// Return the label
+			labelPool.Put(ps[i].labels[j])
+		}
+		// Clear out the label slice
+		ps[i].labels = ps[i].labels[:0]
+		// Return the sample
+		samplePool.Put(ps[i].sample)
+		// Return the packet
+		packetPool.Put(ps[i])
+	}
+	// Clear out the packet slice
+	ps = ps[:0]
+	// Return the packet slice
+	packetsPool.Put(ps)
 }
