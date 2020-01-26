@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net"
@@ -10,9 +11,12 @@ import (
 	"github.com/brutella/can"
 
 	"github.com/slim-bean/leafbus/pkg/charge"
+	"github.com/slim-bean/leafbus/pkg/push"
 )
 
 func main() {
+	address := flag.String("cortex-address", "localhost:9002", "GRPC address and port to find cortex")
+
 	log.Println("Finding interface")
 	iface, err := net.InterfaceByName("can0")
 
@@ -31,9 +35,20 @@ func main() {
 		log.Fatal(err)
 	}
 
+	cortex, err := push.NewCortex(*address)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	handler, err := push.NewHandler(cortex)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	log.Println("Creating new Bus and subscribing")
 	bus := can.NewBus(conn)
 	bus.SubscribeFunc(m.Handle)
+	bus.SubscribeFunc(handler.Handle)
 
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt)
