@@ -44,7 +44,7 @@ func (m *Monitor) run() {
 				continue
 			}
 			log.Println(st)
-			if st == charging && m.currCharge >= 900 {
+			if st == charging && m.currCharge >= 780 {
 				log.Println("Reached charge limit, stopping charging")
 				_, err := m.charger.sendCommand(sleep)
 				if err != nil {

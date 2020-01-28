@@ -8,3 +8,8 @@ arm:
 	env GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags '-extldflags "-static"' -o cmd/leafbus/leafbus ./cmd/leafbus/main.go
 send: arm
 	scp cmd/leafbus/leafbus ubuntu@leaf.edjusted.com:
+
+arm-test:
+	env GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags '-extldflags "-static"' -o cmd/cantest/cantest ./cmd/cantest/main.go
+send-test: arm-test
+	scp cmd/cantest/cantest ubuntu@leaf.edjusted.com:
