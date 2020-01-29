@@ -51,19 +51,13 @@ func (h *Handler) Handle(frame can.Frame) {
 			return
 		}
 
-		var motorAmps, motorSpd int16
-		if frame.Data[2]&0b00001000 == 0b00001000 {
-			motorAmps = int16((uint16(frame.Data[2]&0b00001111) << 8) | 0b1111000000000000 | (uint16(frame.Data[3])))
+		var motorAmps int16
+		if frame.Data[2]&0b00000100 == 0b00000100 {
+			motorAmps = int16(((uint16(frame.Data[2]&0b00000111) << 8) | 0b1111100000000000) | uint16(frame.Data[3]))
 		} else {
-			motorAmps = int16((uint16(frame.Data[2]&0b00001111)<<8)&0b0000111111111111 | (uint16(frame.Data[3])))
+			motorAmps = int16(((uint16(frame.Data[2]&0b00000111) << 8) & 0b0000011111111111) | uint16(frame.Data[3]))
 		}
-
-		//
-		motorSpd = int16((uint16(frame.Data[4]) << 8) | (uint16(frame.Data[5])))
-		//
-		//fmt.Println("Amps", motorAmps, "Speed", motorSpd)
-
-		//motorAmps := (int16(frame.Data[2]) << 8) | (int16(frame.Data[3]))
+		motorSpeed := int16(uint16(frame.Data[4])<<8 | uint16(frame.Data[5]))
 
 		p := packetPool.Get().(*packet)
 		ts := time.Now().UnixNano() / int64(time.Millisecond)
@@ -76,11 +70,9 @@ func (h *Handler) Handle(frame can.Frame) {
 
 		h.cortex.data <- p
 
-		//motorSpd := (uint16(frame.Data[4]) << 8) | (uint16(frame.Data[5]))
-
 		p1 := packetPool.Get().(*packet)
 		p1.sample.TimestampMs = ts
-		p1.sample.Value = float64(motorSpd)
+		p1.sample.Value = float64(motorSpeed)
 		l1 := labelPool.Get().(labels.Label)
 		l1.Name = name
 		l1.Value = "motor_speed"
