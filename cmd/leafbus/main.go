@@ -11,6 +11,7 @@ import (
 	"github.com/brutella/can"
 
 	"github.com/slim-bean/leafbus/pkg/charge"
+	"github.com/slim-bean/leafbus/pkg/hydra"
 	"github.com/slim-bean/leafbus/pkg/push"
 )
 
@@ -35,12 +36,17 @@ func main() {
 		log.Fatal(err)
 	}
 
-	cortex, err := push.NewCortex(*address)
+	handler, err := push.NewHandler(*address)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	handler, err := push.NewHandler(cortex)
+	log.Println("Creating Hydra monitor")
+	hyd, err := hydra.NewHydra(handler, "/dev/ttyUSB0")
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = hyd.EnterBinaryMode()
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -62,14 +62,14 @@ type packet struct {
 	sample client.Sample
 }
 
-type Cortex struct {
+type cortex struct {
 	cortex client.HealthAndIngesterClient
 	data   chan *packet
 	active []*packet
 	actMtx sync.Mutex
 }
 
-func NewCortex(address string) (*Cortex, error) {
+func newCortex(address string) (*cortex, error) {
 	fs := flag.NewFlagSet("", flag.PanicOnError)
 	cfg := client.Config{
 		GRPCClientConfig: grpcclient.Config{},
@@ -79,7 +79,7 @@ func NewCortex(address string) (*Cortex, error) {
 	if err != nil {
 		return nil, err
 	}
-	c := &Cortex{
+	c := &cortex{
 		cortex: clt,
 		data:   make(chan *packet, 100),
 		active: packetsPool.Get().([]*packet),
@@ -88,7 +88,7 @@ func NewCortex(address string) (*Cortex, error) {
 	return c, nil
 }
 
-func (c *Cortex) run() {
+func (c *cortex) run() {
 	for {
 		select {
 		case p := <-c.data:
@@ -104,7 +104,7 @@ func (c *Cortex) run() {
 	}
 }
 
-func (c *Cortex) push(ps []*packet) {
+func (c *cortex) push(ps []*packet) {
 	ts := timeSeriesPool.Get().(*TimeSeries)
 	for i := range ps {
 		ts.Labels = append(ts.Labels, ps[i].labels)

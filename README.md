@@ -66,3 +66,11 @@ http://cortex:8002/api/prom
   - [ ] experiment with retention period settings on TSDB
   - [x] fix volume mounts
   - [x] gomadvdebug on cortex 
+
+
+
+Hydra PS
+
+`sudo picocom /dev/ttyUSB0`
+
+`:x` enter to exit binary mode
