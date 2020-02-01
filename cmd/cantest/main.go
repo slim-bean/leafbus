@@ -6,7 +6,6 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"strconv"
 	"unsafe"
 
 	"github.com/brutella/can"
@@ -58,7 +57,7 @@ func main() {
 	}
 
 	var frameID uint32
-	frameID = 0x1DA
+	frameID = 0x1DB
 
 	text := tview.NewTextView()
 
@@ -143,21 +142,21 @@ func (h *Handler) Handle(frame can.Frame) {
 
 			// Even though the doc says the LSB for current is 0.5 it seems to reflect the actual charger current
 			// more accurately when I don't ignore the last bit
-			//var battCurrent int16
-			//if frame.Data[0]&0b10000000 == 0b10000000 {
-			//	battCurrent = int16((uint16(frame.Data[0]) << 3) | 0b1111100000000000 | uint16(frame.Data[1]>>6))
-			//} else {
-			//	battCurrent = int16((uint16(frame.Data[0])<<3)&0b0000011111111111 | uint16(frame.Data[1]>>6))
-			//}
-			//h.text.SetText(fmt.Sprintf("Battery Amps: %v", battCurrent))
-			var motorAmps int16
-			if frame.Data[2]&0b00000100 == 0b00000100 {
-				motorAmps = int16(((uint16(frame.Data[2]&0b00000111) << 8) | 0b1111100000000000) | uint16(frame.Data[3]))
+			var battCurrent int16
+			if frame.Data[0]&0b10000000 == 0b10000000 {
+				battCurrent = int16((uint16(frame.Data[0]) << 3) | 0b1111100000000000 | uint16(frame.Data[1]>>6))
 			} else {
-				motorAmps = int16(((uint16(frame.Data[2]&0b00000111) << 8) & 0b0000011111111111) | uint16(frame.Data[3]))
+				battCurrent = int16((uint16(frame.Data[0])<<3)&0b0000011111111111 | uint16(frame.Data[1]>>6))
 			}
-			motorSpeed := int16(uint16(frame.Data[4])<<8 | uint16(frame.Data[5]))
-			h.text.SetText(fmt.Sprintf("Motor Amps: %v\nMotor Speed: %v\nA: %v", motorAmps, motorSpeed, strconv.FormatInt(int64(motorAmps), 2)))
+			h.text.SetText(fmt.Sprintf("Battery Amps: %v", battCurrent))
+			//var motorAmps int16
+			//if frame.Data[2]&0b00000100 == 0b00000100 {
+			//	motorAmps = int16(((uint16(frame.Data[2]&0b00000111) << 8) | 0b1111100000000000) | uint16(frame.Data[3]))
+			//} else {
+			//	motorAmps = int16(((uint16(frame.Data[2]&0b00000111) << 8) & 0b0000011111111111) | uint16(frame.Data[3]))
+			//}
+			//motorSpeed := int16(uint16(frame.Data[4])<<8 | uint16(frame.Data[5]))
+			//h.text.SetText(fmt.Sprintf("Motor Amps: %v\nMotor Speed: %v\nA: %v", motorAmps, motorSpeed, strconv.FormatInt(int64(motorAmps), 2)))
 		})
 	}
 	//switch frame.ID {

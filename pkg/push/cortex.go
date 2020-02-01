@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	batchSize = 100
+	batchSize = 1000
 
 	timeSeriesPool = sync.Pool{
 		New: func() interface{} {

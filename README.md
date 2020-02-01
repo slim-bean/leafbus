@@ -57,3 +57,12 @@ tsdb:
 storage:
   engine: tsdb
 ```
+
+http://cortex:8002/api/prom
+
+
+  - [ ] power supply (read input voltage and output current)
+  - [ ] configure low voltage shutoff
+  - [ ] experiment with retention period settings on TSDB
+  - [x] fix volume mounts
+  - [x] gomadvdebug on cortex 

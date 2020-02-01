@@ -9,9 +9,13 @@ services:
     volumes:
       - "./config.yaml:/etc/cortex/config.yaml"
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:dev
     ports:
       - "3000:3000"
+    volumes:
+      - "grafana-storage:/var/lib/grafana"
 
 
+volumes:
+  grafana-storage:
 
