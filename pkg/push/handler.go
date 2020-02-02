@@ -6,6 +6,8 @@ import (
 
 	"github.com/brutella/can"
 	"github.com/prometheus/prometheus/pkg/labels"
+
+	"github.com/slim-bean/leafbus/pkg/stream"
 )
 
 const (
@@ -16,8 +18,8 @@ type Handler struct {
 	cortex *cortex
 }
 
-func NewHandler(address string) (*Handler, error) {
-	c, err := newCortex(address)
+func NewHandler(address string, strm *stream.Streamer) (*Handler, error) {
+	c, err := newCortex(address, strm)
 	if err != nil {
 		return nil, err
 	}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/slim-bean/leafbus/pkg/charge"
 	"github.com/slim-bean/leafbus/pkg/hydra"
 	"github.com/slim-bean/leafbus/pkg/push"
+	"github.com/slim-bean/leafbus/pkg/stream"
 )
 
 func main() {
@@ -36,7 +38,10 @@ func main() {
 		log.Fatal(err)
 	}
 
-	handler, err := push.NewHandler(*address)
+	log.Println("Creating streamer")
+	strm := stream.NewStreamer()
+
+	handler, err := push.NewHandler(*address, strm)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -44,11 +49,12 @@ func main() {
 	log.Println("Creating Hydra monitor")
 	hyd, err := hydra.NewHydra(handler, "/dev/ttyUSB0")
 	if err != nil {
-		log.Fatal(err)
-	}
-	err = hyd.EnterBinaryMode()
-	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
+	} else {
+		err = hyd.EnterBinaryMode()
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	log.Println("Creating new Bus and subscribing")
@@ -65,6 +71,14 @@ func main() {
 		case <-c:
 			bus.Disconnect()
 			os.Exit(1)
+		}
+	}()
+
+	log.Println("Starting web server")
+	http.HandleFunc("/stream", strm.Handler)
+	go func() {
+		if err := http.ListenAndServe(":7777", nil); err != nil {
+			log.Println(err)
 		}
 	}()
 

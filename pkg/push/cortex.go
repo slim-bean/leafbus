@@ -11,6 +11,8 @@ import (
 	"github.com/cortexproject/cortex/pkg/util/grpcclient"
 	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/weaveworks/common/user"
+
+	"github.com/slim-bean/leafbus/pkg/stream"
 )
 
 var (
@@ -67,9 +69,10 @@ type cortex struct {
 	data   chan *packet
 	active []*packet
 	actMtx sync.Mutex
+	strm   *stream.Streamer
 }
 
-func newCortex(address string) (*cortex, error) {
+func newCortex(address string, strm *stream.Streamer) (*cortex, error) {
 	fs := flag.NewFlagSet("", flag.PanicOnError)
 	cfg := client.Config{
 		GRPCClientConfig: grpcclient.Config{},
@@ -83,6 +86,7 @@ func newCortex(address string) (*cortex, error) {
 		cortex: clt,
 		data:   make(chan *packet, 100),
 		active: packetsPool.Get().([]*packet),
+		strm:   strm,
 	}
 	go c.run()
 	return c, nil
@@ -92,6 +96,11 @@ func (c *cortex) run() {
 	for {
 		select {
 		case p := <-c.data:
+			d := stream.GetData()
+			d.Name = p.labels.Get(name)
+			d.Timestamp = p.sample.TimestampMs
+			d.Val = p.sample.Value
+			c.strm.SendData(d)
 			c.actMtx.Lock()
 			c.active = append(c.active, p)
 			if len(c.active) == batchSize {

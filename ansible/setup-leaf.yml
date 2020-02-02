@@ -1,0 +1,23 @@
+---
+- name: Setup Leaf Pi
+  hosts: leaf
+  user: ubuntu
+  become: yes
+  tasks:
+  - name: Install packages
+    apt:
+      name: "{{ packages }}"
+    vars:
+      packages:
+        - hostapd
+        - dnsmasq
+  - name: Copy hostapd conf
+    copy:
+      src: files/hostapd.conf
+      dest: /etc/hostapd/hostapd.conf
+      mode: u=rw,g=r,o=
+  - name: Copy dnsmasq conf
+    copy:
+      src: files/dnsmasq.conf
+      dest: /etc/dnsmasq.conf
+      mode: u=rw,g=r,o=r

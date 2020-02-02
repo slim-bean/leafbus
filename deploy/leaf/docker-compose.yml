@@ -12,6 +12,16 @@ services:
     volumes:
       - "/home/ubuntu/cortex/config.yaml:/etc/cortex/config.yaml"
       - "/srv/cortex-tsdb-ingester:/srv/cortex-tsdb-ingester"
+  grafana:
+    image: grafana/grafana:6.6.0
+    user: "1000"
+    network_mode: "host"
+    ports:
+      - "3000:3000"
+    volumes:
+      - "/home/ubuntu/grafana:/var/lib/grafana"
+
+
 
 
 #  leafbus:

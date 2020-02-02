@@ -1,0 +1,10 @@
+network:
+  version: 2
+  renderer: networkd
+  wifis:
+    wlan0:
+      dhcp4: yes
+      dhcp6: no
+      access-points:
+        "mink":
+          password: ""
