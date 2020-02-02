@@ -65,14 +65,14 @@ type packet struct {
 }
 
 type cortex struct {
-	cortex client.HealthAndIngesterClient
-	data   chan *packet
-	active []*packet
-	actMtx sync.Mutex
-	strm   *stream.Streamer
+	cortex    client.HealthAndIngesterClient
+	data      chan *packet
+	active    []*packet
+	actMtx    sync.Mutex
+	streamMap map[string][]chan *stream.Data
 }
 
-func newCortex(address string, strm *stream.Streamer) (*cortex, error) {
+func newCortex(address string) (*cortex, error) {
 	fs := flag.NewFlagSet("", flag.PanicOnError)
 	cfg := client.Config{
 		GRPCClientConfig: grpcclient.Config{},
@@ -83,24 +83,69 @@ func newCortex(address string, strm *stream.Streamer) (*cortex, error) {
 		return nil, err
 	}
 	c := &cortex{
-		cortex: clt,
-		data:   make(chan *packet, 100),
-		active: packetsPool.Get().([]*packet),
-		strm:   strm,
+		cortex:    clt,
+		data:      make(chan *packet, 100),
+		active:    packetsPool.Get().([]*packet),
+		streamMap: map[string][]chan *stream.Data{},
 	}
 	go c.run()
 	return c, nil
+}
+
+func (c *cortex) follow(name string, channel chan *stream.Data) {
+	if _, ok := c.streamMap[name]; ok {
+		for i := range c.streamMap[name] {
+			if c.streamMap[name][i] == channel {
+				log.Println("ERROR, stream is already being followed with this channel")
+				return
+			}
+		}
+		log.Printf("New follower registered for: %v, count: %v\n", name, len(c.streamMap[name]))
+		c.streamMap[name] = append(c.streamMap[name], channel)
+	} else {
+		log.Println("First follower registered for: ", name)
+		c.streamMap[name] = []chan *stream.Data{channel}
+	}
+}
+
+func (c *cortex) unfollow(name string, channel chan *stream.Data) {
+	if _, ok := c.streamMap[name]; !ok {
+		log.Println("ERROR, tried to unfollow a stream not being followed")
+		return
+	} else {
+		for i := range c.streamMap[name] {
+			if c.streamMap[name][i] == channel {
+				c.streamMap[name][i] = c.streamMap[name][len(c.streamMap[name])-1]
+				c.streamMap[name][len(c.streamMap[name])-1] = nil
+				c.streamMap[name] = c.streamMap[name][:len(c.streamMap[name])-1]
+				log.Printf("Removed follower for metric %v, %v remaining followers", name, len(c.streamMap[name]))
+				if len(c.streamMap[name]) == 0 {
+					log.Printf("No longer following any streams for metric %v, removing\n", name)
+					delete(c.streamMap, name)
+				}
+				return
+			}
+		}
+		log.Printf("ERROR: Failed to remove follower for %v, did not find any matching channels", name)
+	}
 }
 
 func (c *cortex) run() {
 	for {
 		select {
 		case p := <-c.data:
-			d := stream.GetData()
-			d.Name = p.labels.Get(name)
-			d.Timestamp = p.sample.TimestampMs
-			d.Val = p.sample.Value
-			c.strm.SendData(d)
+			if _, ok := c.streamMap[p.labels.Get(name)]; ok {
+				for _, ch := range c.streamMap[p.labels.Get(name)] {
+					if len(ch) >= 1 {
+						continue
+					}
+					d := stream.GetData()
+					d.Name = p.labels.Get(name)
+					d.Timestamp = p.sample.TimestampMs
+					d.Val = p.sample.Value
+					ch <- d
+				}
+			}
 			c.actMtx.Lock()
 			c.active = append(c.active, p)
 			if len(c.active) == batchSize {

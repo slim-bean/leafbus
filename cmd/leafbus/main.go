@@ -38,13 +38,14 @@ func main() {
 		log.Fatal(err)
 	}
 
-	log.Println("Creating streamer")
-	strm := stream.NewStreamer()
-
-	handler, err := push.NewHandler(*address, strm)
+	log.Println("Creating handler")
+	handler, err := push.NewHandler(*address)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	log.Println("Creating streamer")
+	strm := stream.NewStreamer(handler)
 
 	log.Println("Creating Hydra monitor")
 	hyd, err := hydra.NewHydra(handler, "/dev/ttyUSB0")

@@ -19,6 +19,11 @@ var (
 	}
 )
 
+type FollowStream interface {
+	Follow(string, chan *Data)
+	Unfollow(string, chan *Data)
+}
+
 func GetData() *Data {
 	return dataPool.Get().(*Data)
 }
@@ -34,21 +39,11 @@ func (d *Data) String() string {
 }
 
 type Streamer struct {
-	send chan *Data
+	handler FollowStream
 }
 
-func NewStreamer() *Streamer {
-	return &Streamer{send: make(chan *Data, 100)}
-}
-
-func (s *Streamer) SendData(d *Data) {
-	//If we can't keep up, drop samples
-	if len(s.send) >= 100 {
-		dataPool.Put(d)
-		log.Println("backed up sending data over http")
-		return
-	}
-	s.send <- d
+func NewStreamer(handler FollowStream) *Streamer {
+	return &Streamer{handler: handler}
 }
 
 func setupResponse(w *http.ResponseWriter, req *http.Request) {
@@ -83,16 +78,24 @@ func (s *Streamer) Handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/plain")
+	channel := make(chan *Data, 1)
+	s.handler.Follow(name, channel)
+	defer func() {
+		log.Println("Unfollowing")
+		s.handler.Unfollow(name, channel)
+		close(channel)
+	}()
 	for {
 		select {
-		case d := <-s.send:
+		case d := <-channel:
 			if d.Name == name {
 				fmt.Fprintf(w, "%v", d)
 				flusher.Flush()
 			}
 			dataPool.Put(d)
+		case <-r.Context().Done():
+			log.Println("Client connection closed")
+			return
 		}
-
 	}
-
 }

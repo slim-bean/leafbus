@@ -18,8 +18,16 @@ type Handler struct {
 	cortex *cortex
 }
 
-func NewHandler(address string, strm *stream.Streamer) (*Handler, error) {
-	c, err := newCortex(address, strm)
+func (h *Handler) Follow(name string, channel chan *stream.Data) {
+	h.cortex.follow(name, channel)
+}
+
+func (h *Handler) Unfollow(name string, channel chan *stream.Data) {
+	h.cortex.unfollow(name, channel)
+}
+
+func NewHandler(address string) (*Handler, error) {
+	c, err := newCortex(address)
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +47,7 @@ func (h *Handler) Handle(frame can.Frame) {
 			return
 		}
 		currCharge := (uint16(frame.Data[0]) << 2) | (uint16(frame.Data[1]) >> 6)
-		h.SendMetric("soc", nil, time.Now(), float64(currCharge))
+		h.SendMetric("soc", nil, time.Now(), float64(currCharge)/10)
 
 	case 0x1DA:
 		//Battery Current and Voltage
