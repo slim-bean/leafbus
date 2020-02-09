@@ -74,3 +74,35 @@ Hydra PS
 `sudo picocom /dev/ttyUSB0`
 
 `:x` enter to exit binary mode
+
+
+Ras pi, ubuntu and serial
+
+
+Had to change the bootloader because the ubuntu uboot seems to enable the serial console via terminal and has a `Hit any key to stop autoboot` which would read the NMEA messages from the GPS module and stop booting.  I found [instructions here](https://wiki.ubuntu.com/ARM/RaspberryPi#Change_the_bootloader) but basically I only needed to modify the `/boot/firmware/config.txt` like so:
+
+config.txt
+```
+[all]
+arm_64bit=1
+#device_tree_address=0x03000000
+kernel=vmlinuz
+initramfs initrd.img followkernel
+```
+
+And then we need to disable serial console from the OS too:
+
+nobtcfg.txt
+```
+enable_uart=1
+#cmdline=nobtcmd.txt
+cmdline=nobtnoserialcmd.txt
+dtoverlay=pi3-disable-bt
+```
+
+nobtnoserialcmd.txt
+```
+net.ifnames=0 dwc_otg.lpm_enable=0 console=tty1 root=LABEL=writable rootfstype=ext4 elevator=deadline rootwait fixrtc
+```
+
+(just removing `console=ttyAMA0,115200`)

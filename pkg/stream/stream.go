@@ -1,9 +1,12 @@
 package stream
 
 import (
+	"encoding/binary"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
+	"strconv"
 	"sync"
 )
 
@@ -11,17 +14,22 @@ var (
 	dataPool = sync.Pool{
 		New: func() interface{} {
 			return &Data{
-				Name:      "",
 				Timestamp: 0,
 				Val:       0,
+				bytes:     []byte{'s', 'n', 'p', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 			}
 		},
 	}
 )
 
 type FollowStream interface {
-	Follow(string, chan *Data)
-	Unfollow(string, chan *Data)
+	Follow(string, *Follower)
+	Unfollow(string, *Follower)
+}
+
+type Follower struct {
+	Pub  chan *Data
+	Rate int64
 }
 
 func GetData() *Data {
@@ -29,13 +37,19 @@ func GetData() *Data {
 }
 
 type Data struct {
-	Name      string
 	Timestamp int64
 	Val       float64
+	bytes     []byte
 }
 
 func (d *Data) String() string {
 	return fmt.Sprintf("%v %v\n", d.Timestamp, d.Val)
+}
+
+func (d *Data) Bytes() []byte {
+	binary.BigEndian.PutUint64(d.bytes[3:11], math.Float64bits(float64(d.Timestamp)))
+	binary.BigEndian.PutUint64(d.bytes[11:], math.Float64bits(d.Val))
+	return d.bytes
 }
 
 type Streamer struct {
@@ -57,8 +71,6 @@ func (s *Streamer) Handler(w http.ResponseWriter, r *http.Request) {
 	if (*r).Method == "OPTIONS" {
 		return
 	}
-	//counter = counter + 1
-	//id := counter
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -77,25 +89,41 @@ func (s *Streamer) Handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var rate int64
+	rateQuery := query.Get("rate")
+	if rateQuery != "" && rateQuery != "undefined" {
+		rt, err := strconv.ParseInt(rateQuery, 10, 64)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Unable to parse rate as int64: %v", err), http.StatusBadRequest)
+			return
+		}
+		rate = rt
+	}
+
 	w.Header().Set("Content-Type", "text/plain")
-	channel := make(chan *Data, 1)
-	s.handler.Follow(name, channel)
+	f := &Follower{
+		Pub:  make(chan *Data, 1),
+		Rate: rate,
+	}
+	s.handler.Follow(name, f)
 	defer func() {
 		log.Println("Unfollowing")
-		s.handler.Unfollow(name, channel)
-		close(channel)
+		s.handler.Unfollow(name, f)
+		close(f.Pub)
 	}()
 	for {
 		select {
-		case d := <-channel:
-			if d.Name == name {
-				fmt.Fprintf(w, "%v", d)
-				flusher.Flush()
-			}
-			dataPool.Put(d)
+		case d := <-f.Pub:
+			w.Write(d.Bytes())
+			flusher.Flush()
+			reuseData(d)
 		case <-r.Context().Done():
 			log.Println("Client connection closed")
 			return
 		}
 	}
+}
+
+func reuseData(data *Data) {
+	dataPool.Put(data)
 }

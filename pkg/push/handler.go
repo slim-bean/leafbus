@@ -18,12 +18,12 @@ type Handler struct {
 	cortex *cortex
 }
 
-func (h *Handler) Follow(name string, channel chan *stream.Data) {
-	h.cortex.follow(name, channel)
+func (h *Handler) Follow(name string, follower *stream.Follower) {
+	h.cortex.follow(name, follower)
 }
 
-func (h *Handler) Unfollow(name string, channel chan *stream.Data) {
-	h.cortex.unfollow(name, channel)
+func (h *Handler) Unfollow(name string, follower *stream.Follower) {
+	h.cortex.unfollow(name, follower)
 }
 
 func NewHandler(address string) (*Handler, error) {

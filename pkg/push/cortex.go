@@ -69,7 +69,8 @@ type cortex struct {
 	data      chan *packet
 	active    []*packet
 	actMtx    sync.Mutex
-	streamMap map[string][]chan *stream.Data
+	streamMap map[string][]*ratedFollower
+	streamMtx sync.Mutex
 }
 
 func newCortex(address string) (*cortex, error) {
@@ -86,35 +87,52 @@ func newCortex(address string) (*cortex, error) {
 		cortex:    clt,
 		data:      make(chan *packet, 100),
 		active:    packetsPool.Get().([]*packet),
-		streamMap: map[string][]chan *stream.Data{},
+		streamMap: map[string][]*ratedFollower{},
 	}
 	go c.run()
 	return c, nil
 }
 
-func (c *cortex) follow(name string, channel chan *stream.Data) {
+type ratedFollower struct {
+	*stream.Follower
+	lastSent int64
+}
+
+func (c *cortex) follow(name string, follower *stream.Follower) {
+	c.streamMtx.Lock()
+	defer c.streamMtx.Unlock()
 	if _, ok := c.streamMap[name]; ok {
 		for i := range c.streamMap[name] {
-			if c.streamMap[name][i] == channel {
+			if c.streamMap[name][i].Follower == follower {
 				log.Println("ERROR, stream is already being followed with this channel")
 				return
 			}
 		}
 		log.Printf("New follower registered for: %v, count: %v\n", name, len(c.streamMap[name]))
-		c.streamMap[name] = append(c.streamMap[name], channel)
+		f := &ratedFollower{
+			Follower: follower,
+			lastSent: 0,
+		}
+		c.streamMap[name] = append(c.streamMap[name], f)
 	} else {
 		log.Println("First follower registered for: ", name)
-		c.streamMap[name] = []chan *stream.Data{channel}
+		f := &ratedFollower{
+			Follower: follower,
+			lastSent: 0,
+		}
+		c.streamMap[name] = []*ratedFollower{f}
 	}
 }
 
-func (c *cortex) unfollow(name string, channel chan *stream.Data) {
+func (c *cortex) unfollow(name string, follower *stream.Follower) {
+	c.streamMtx.Lock()
+	defer c.streamMtx.Unlock()
 	if _, ok := c.streamMap[name]; !ok {
 		log.Println("ERROR, tried to unfollow a stream not being followed")
 		return
 	} else {
 		for i := range c.streamMap[name] {
-			if c.streamMap[name][i] == channel {
+			if c.streamMap[name][i].Follower == follower {
 				c.streamMap[name][i] = c.streamMap[name][len(c.streamMap[name])-1]
 				c.streamMap[name][len(c.streamMap[name])-1] = nil
 				c.streamMap[name] = c.streamMap[name][:len(c.streamMap[name])-1]
@@ -134,20 +152,35 @@ func (c *cortex) run() {
 	for {
 		select {
 		case p := <-c.data:
+
+			//Send to any live streamers
 			if _, ok := c.streamMap[p.labels.Get(name)]; ok {
-				for _, ch := range c.streamMap[p.labels.Get(name)] {
-					if len(ch) >= 1 {
+				for _, f := range c.streamMap[p.labels.Get(name)] {
+					if len(f.Pub) >= 1 {
 						continue
 					}
+					// Check to see if it's time to send another sample based on the rate requested, if rate is enabled.
+					if f.Rate > 0 {
+						if p.sample.TimestampMs-f.lastSent < f.Rate {
+							// Too soon, skip this sample
+							continue
+						} else {
+							// Equal or exceeded rate, update last send and allow this sample to be sent.
+							f.lastSent = p.sample.TimestampMs
+						}
+					}
 					d := stream.GetData()
-					d.Name = p.labels.Get(name)
 					d.Timestamp = p.sample.TimestampMs
 					d.Val = p.sample.Value
-					ch <- d
+					f.Pub <- d
 				}
 			}
+
+			// Add to batch
 			c.actMtx.Lock()
 			c.active = append(c.active, p)
+
+			// If batch is full, send to cortex
 			if len(c.active) == batchSize {
 				sending := c.active
 				c.active = packetsPool.Get().([]*packet)
