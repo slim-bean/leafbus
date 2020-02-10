@@ -28,14 +28,14 @@ var (
 	}
 	packetsPool = sync.Pool{
 		New: func() interface{} {
-			return make([]*packet, 0, batchSize)
+			return make([]*Packet, 0, batchSize)
 		},
 	}
 	packetPool = sync.Pool{
 		New: func() interface{} {
-			return &packet{
-				sample: samplePool.Get().(client.Sample),
-				labels: make([]labels.Label, 0, 10),
+			return &Packet{
+				Sample: samplePool.Get().(client.Sample),
+				Labels: make([]labels.Label, 0, 10),
 			}
 		},
 	}
@@ -59,15 +59,15 @@ type TimeSeries struct {
 	Samples []client.Sample
 }
 
-type packet struct {
-	labels labels.Labels
-	sample client.Sample
+type Packet struct {
+	Labels labels.Labels
+	Sample client.Sample
 }
 
 type cortex struct {
 	cortex    client.HealthAndIngesterClient
-	data      chan *packet
-	active    []*packet
+	data      chan *Packet
+	active    []*Packet
 	actMtx    sync.Mutex
 	streamMap map[string][]*ratedFollower
 	streamMtx sync.Mutex
@@ -85,8 +85,8 @@ func newCortex(address string) (*cortex, error) {
 	}
 	c := &cortex{
 		cortex:    clt,
-		data:      make(chan *packet, 100),
-		active:    packetsPool.Get().([]*packet),
+		data:      make(chan *Packet, 100),
+		active:    packetsPool.Get().([]*Packet),
 		streamMap: map[string][]*ratedFollower{},
 	}
 	go c.run()
@@ -154,24 +154,24 @@ func (c *cortex) run() {
 		case p := <-c.data:
 
 			//Send to any live streamers
-			if _, ok := c.streamMap[p.labels.Get(name)]; ok {
-				for _, f := range c.streamMap[p.labels.Get(name)] {
+			if _, ok := c.streamMap[p.Labels.Get(name)]; ok {
+				for _, f := range c.streamMap[p.Labels.Get(name)] {
 					if len(f.Pub) >= 1 {
 						continue
 					}
 					// Check to see if it's time to send another sample based on the rate requested, if rate is enabled.
 					if f.Rate > 0 {
-						if p.sample.TimestampMs-f.lastSent < f.Rate {
+						if p.Sample.TimestampMs-f.lastSent < f.Rate {
 							// Too soon, skip this sample
 							continue
 						} else {
 							// Equal or exceeded rate, update last send and allow this sample to be sent.
-							f.lastSent = p.sample.TimestampMs
+							f.lastSent = p.Sample.TimestampMs
 						}
 					}
 					d := stream.GetData()
-					d.Timestamp = p.sample.TimestampMs
-					d.Val = p.sample.Value
+					d.Timestamp = p.Sample.TimestampMs
+					d.Val = p.Sample.Value
 					f.Pub <- d
 				}
 			}
@@ -183,7 +183,7 @@ func (c *cortex) run() {
 			// If batch is full, send to cortex
 			if len(c.active) == batchSize {
 				sending := c.active
-				c.active = packetsPool.Get().([]*packet)
+				c.active = packetsPool.Get().([]*Packet)
 				go c.push(sending)
 			}
 			c.actMtx.Unlock()
@@ -191,12 +191,13 @@ func (c *cortex) run() {
 	}
 }
 
-func (c *cortex) push(ps []*packet) {
+func (c *cortex) push(ps []*Packet) {
 	ts := timeSeriesPool.Get().(*TimeSeries)
 	for i := range ps {
-		ts.Labels = append(ts.Labels, ps[i].labels)
-		ts.Samples = append(ts.Samples, ps[i].sample)
+		ts.Labels = append(ts.Labels, ps[i].Labels)
+		ts.Samples = append(ts.Samples, ps[i].Sample)
 	}
+	// FIXME if this function took an array of pointers to ts.Samples I think it would save a bunch of copys and allocs
 	wr := client.ToWriteRequest(ts.Labels, ts.Samples, client.API)
 	ctx := context.Background()
 	ctx, cancel := context.WithTimeout(ctx, time.Second*5)
@@ -222,18 +223,18 @@ func reuseTimeseries(ts *TimeSeries) {
 	timeSeriesPool.Put(ts)
 }
 
-func reusePackets(ps []*packet) {
+func reusePackets(ps []*Packet) {
 	// For each packet
 	for i := range ps {
 		// For each label in the packets label slice
-		for j := range ps[i].labels {
+		for j := range ps[i].Labels {
 			// Return the label
-			labelPool.Put(ps[i].labels[j])
+			labelPool.Put(ps[i].Labels[j])
 		}
 		// Clear out the label slice
-		ps[i].labels = ps[i].labels[:0]
+		ps[i].Labels = ps[i].Labels[:0]
 		// Return the sample
-		samplePool.Put(ps[i].sample)
+		samplePool.Put(ps[i].Sample)
 		// Return the packet
 		packetPool.Put(ps[i])
 	}

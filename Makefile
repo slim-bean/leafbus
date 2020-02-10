@@ -18,3 +18,8 @@ hydra:
 	env GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags '-extldflags "-static"' -o cmd/hydratest/hydratest ./cmd/hydratest/main.go
 send-hydra: hydra
 	scp cmd/hydratest/hydratest ubuntu@leaf.edjusted.com:
+
+ms4525:
+	env GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags '-extldflags "-static"' -o cmd/ms4525/ms4525 ./cmd/ms4525/main.go
+send-ms4525: ms4525
+	scp cmd/ms4525/ms4525 ubuntu@leaf.edjusted.com:

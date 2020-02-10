@@ -13,6 +13,7 @@ import (
 
 	"github.com/slim-bean/leafbus/pkg/charge"
 	"github.com/slim-bean/leafbus/pkg/hydra"
+	"github.com/slim-bean/leafbus/pkg/ms4525"
 	"github.com/slim-bean/leafbus/pkg/push"
 	"github.com/slim-bean/leafbus/pkg/stream"
 )
@@ -56,6 +57,12 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+	}
+
+	log.Println("Creating MS4525")
+	_, err = ms4525.NewMS4525(handler, 1)
+	if err != nil {
+		log.Println(err)
 	}
 
 	log.Println("Creating new Bus and subscribing")

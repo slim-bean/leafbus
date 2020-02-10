@@ -90,16 +90,16 @@ func (h *Handler) Handle(frame can.Frame) {
 }
 
 func (h *Handler) SendMetric(metricName string, additionalLabels labels.Labels, timestamp time.Time, val float64) {
-	p := packetPool.Get().(*packet)
+	p := packetPool.Get().(*Packet)
 	ts := timestamp.UnixNano() / int64(time.Millisecond)
-	p.sample.TimestampMs = ts
-	p.sample.Value = val
+	p.Sample.TimestampMs = ts
+	p.Sample.Value = val
 	l := labelPool.Get().(labels.Label)
 	l.Name = name
 	l.Value = metricName
-	p.labels = append(p.labels, l)
+	p.Labels = append(p.Labels, l)
 	if additionalLabels != nil {
-		p.labels = append(p.labels, additionalLabels...)
+		p.Labels = append(p.Labels, additionalLabels...)
 	}
 	h.cortex.data <- p
 }
