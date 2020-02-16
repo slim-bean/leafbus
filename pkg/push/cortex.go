@@ -154,6 +154,7 @@ func (c *cortex) run() {
 		case p := <-c.data:
 
 			//Send to any live streamers
+			c.streamMtx.Lock()
 			if _, ok := c.streamMap[p.Labels.Get(name)]; ok {
 				for _, f := range c.streamMap[p.Labels.Get(name)] {
 					if len(f.Pub) >= 1 {
@@ -175,6 +176,7 @@ func (c *cortex) run() {
 					f.Pub <- d
 				}
 			}
+			c.streamMtx.Unlock()
 
 			// Add to batch
 			c.actMtx.Lock()
