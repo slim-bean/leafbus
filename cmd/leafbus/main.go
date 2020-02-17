@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 
 	"github.com/brutella/can"
 
@@ -60,7 +61,7 @@ func main() {
 	}
 
 	log.Println("Creating MS4525")
-	_, err = ms4525.NewMS4525(handler, 1)
+	ms, err := ms4525.NewMS4525(handler, 1)
 	if err != nil {
 		log.Println(err)
 	}
@@ -84,6 +85,21 @@ func main() {
 
 	log.Println("Starting web server")
 	http.HandleFunc("/stream", strm.Handler)
+	http.HandleFunc("/control", func(writer http.ResponseWriter, request *http.Request) {
+		run := request.URL.Query().Get("run")
+		if strings.ToLower(run) == "true" {
+			fmt.Println("Starting ms4525")
+			ms.Start()
+			writer.WriteHeader(http.StatusOK)
+			return
+		} else if strings.ToLower(run) == "false" {
+			fmt.Println("Stopping ms4525")
+			ms.Stop()
+			writer.WriteHeader(http.StatusOK)
+			return
+		}
+		writer.WriteHeader(http.StatusBadRequest)
+	})
 	go func() {
 		if err := http.ListenAndServe(":7777", nil); err != nil {
 			log.Println(err)
