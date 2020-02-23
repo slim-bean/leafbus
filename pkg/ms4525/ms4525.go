@@ -35,7 +35,7 @@ func NewMS4525(handler *push.Handler, bus int) (*MS4525, error) {
 	ms := &MS4525{
 		handler:   handler,
 		bus:       b,
-		shouldRun: true,
+		shouldRun: false,
 		runChan:   make(chan bool),
 	}
 	go ms.run()

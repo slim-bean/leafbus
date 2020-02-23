@@ -1,0 +1,24 @@
+---
+- name: Copy and extract archive
+  unarchive:
+    src: "node_exporter-{{ node_exporter_version }}.{{ node_exporter_architecture }}.tar.gz"
+    dest: /tmp/
+    creates: /tmp/node_exporter-{{ node_exporter_version }}.{{ node_exporter_architecture }}/node_exporter
+- name: Move binary
+  copy:
+    remote_src: True
+    src: /tmp/node_exporter-{{ node_exporter_version }}.{{ node_exporter_architecture }}/node_exporter
+    dest: /usr/bin/node_exporter
+    mode: +x
+- name: Copy systemd file
+  copy:
+    src: node_exporter.service
+    dest: /etc/systemd/system/node_exporter.service
+- name: Configure systemd daemon
+  systemd:
+    daemon_reload: yes
+    name: node_exporter
+    state: restarted
+    enabled: yes
+
+

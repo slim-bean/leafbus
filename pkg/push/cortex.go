@@ -210,8 +210,8 @@ func (c *cortex) push(ps []*Packet) {
 	_, err := c.cortex.Push(ctx, wr)
 	if err != nil {
 		log.Println("Failed to end series to ingester: ", err)
-		log.Printf("Timeseries: %v", ts)
-		log.Printf("Samples: %v", wr.Timeseries)
+		//log.Printf("Timeseries: %v", ts)
+		//log.Printf("Samples: %v", wr.Timeseries)
 	}
 	client.ReuseSlice(wr.Timeseries)
 	reuseTimeseries(ts)

@@ -1,0 +1,25 @@
+server:
+  log_level: info
+  http_listen_port: 12345
+
+prometheus:
+  wal_directory: /home/ubuntu/agent-wal
+  global:
+    scrape_interval: 15s
+  configs:
+    - name: leaf
+      scrape_configs:
+        - job_name: agent
+          static_configs:
+            - targets: ['127.0.0.1:12345']
+        - job_name: cortex
+          static_configs:
+            - targets: ['127.0.0.1:8002']
+        - job_name: node
+          static_configs:
+            - targets: ['127.0.0.1:9100']
+        - job_name: leafbus
+          static_configs:
+            - targets: ['127.0.0.1:7777']
+      remote_write:
+        - url: http://localhost:8002/api/prom/push

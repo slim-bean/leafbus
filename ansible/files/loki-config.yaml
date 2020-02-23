@@ -1,0 +1,33 @@
+auth_enabled: false
+
+server:
+  http_listen_port: 8003
+  grpc_listen_port: 9003
+
+ingester:
+  lifecycler:
+    address: 127.0.0.1
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
+    final_sleep: 0s
+  chunk_idle_period: 20m  # Set longer than max_chunk_age so that everything gets flushed at 15m
+  chunk_retain_period: 30s
+  max_transfer_retries: 0
+  chunk_target_size: 1048576 # 1MB
+  max_chunk_age: 15m
+
+schema_config:
+  configs:
+    - from: 2018-04-15
+      store: inmemory
+      object_store: filesystem
+      schema: v11
+      index:
+        prefix: index_
+        period: 168h
+
+storage_config:
+  filesystem:
+    directory: /var/lib/loki/chunks

@@ -1,0 +1,13 @@
+[Unit]
+Description=agent
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+ExecStart=/home/ubuntu/agent -config.file=/home/ubuntu/agent-config.yml
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

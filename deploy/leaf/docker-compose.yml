@@ -6,12 +6,24 @@ services:
     environment:
       - GODEBUG=madvdontneed=1
     command: "-config.file=/etc/cortex/config.yaml -target=ingester -server.http-listen-port=8002 -server.grpc-listen-port=9002"
+    restart: always
     ports:
       - 8002:8002
       - 9002:9002
     volumes:
       - "/home/ubuntu/cortex/config.yaml:/etc/cortex/config.yaml"
       - "/srv/cortex-tsdb-ingester:/srv/cortex-tsdb-ingester"
+  loki:
+    image: grafana/loki:master-a4d671b
+    environment:
+      - GODEBUG=madvdontneed=1
+    command: "-config.file=/etc/loki/loki-config.yaml -target=ingester"
+    #restart: always
+    volumes:
+      - "/srv/loki:/var/lib/loki"
+      - "/home/ubuntu/loki/loki-config.yaml:/etc/loki/loki-config.yaml"
+    ports:
+      - "3100:3100"
   grafana:
     image: grafana/grafana:6.6.0
     user: "1000"
