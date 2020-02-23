@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"github.com/brutella/can"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/slim-bean/leafbus/pkg/charge"
 	"github.com/slim-bean/leafbus/pkg/hydra"
@@ -100,6 +102,14 @@ func main() {
 		}
 		writer.WriteHeader(http.StatusBadRequest)
 	})
+	// Expose the registered metrics via HTTP.
+	http.Handle("/metrics", promhttp.HandlerFor(
+		prometheus.DefaultGatherer,
+		promhttp.HandlerOpts{
+			// Opt into OpenMetrics to support exemplars.
+			EnableOpenMetrics: true,
+		},
+	))
 	go func() {
 		if err := http.ListenAndServe(":7777", nil); err != nil {
 			log.Println(err)

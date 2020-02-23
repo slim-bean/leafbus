@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 User=ubuntu
-ExecStart=/home/ubuntu/agent -config.file=/home/ubuntu/agent-config.yml
+ExecStart=/home/ubuntu/agent -config.file=/home/ubuntu/agent-config.yaml
 Restart=always
 RestartSec=10
 

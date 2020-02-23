@@ -2,7 +2,7 @@ version: "3.7"
 
 services:
   cortex:
-    image: cortexproject/cortex:master-dd77369a
+    image: slimbean/cortex-querier:latest
     command: "-config.file=/etc/cortex/config.yaml -target=querier -server.http-listen-port=8002 -querier.query-ingesters-within=-10s"
     ports:
       - 8002:8002

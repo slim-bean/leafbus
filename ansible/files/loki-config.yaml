@@ -21,7 +21,7 @@ ingester:
 schema_config:
   configs:
     - from: 2018-04-15
-      store: inmemory
+      store: boltdb
       object_store: filesystem
       schema: v11
       index:
@@ -29,5 +29,7 @@ schema_config:
         period: 168h
 
 storage_config:
+  boltdb:
+    directory: /var/lib/loki/index
   filesystem:
     directory: /var/lib/loki/chunks

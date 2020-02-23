@@ -1,0 +1,41 @@
+auth_enabled: false
+
+server:
+  http_listen_port: 8002
+  grpc_listen_port: 9002
+
+ingester:
+  max_transfer_retries: 1
+
+  lifecycler:
+    # We want to start immediately.
+    join_after: 0
+    claim_on_rollout: false
+    final_sleep: 0s
+    num_tokens: 512
+    address: 127.0.0.1
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
+
+
+tsdb:
+  dir: /srv/cortex-tsdb-ingester
+  ship_interval: 1m
+  block_ranges_period: [ 5m ]
+  retention_period: 24h
+  backend: s3
+
+  bucket_store:
+    sync_dir: /srv/cortex-tsdb-querier
+
+  s3:
+    endpoint:          {{ endpoint }}
+    bucket_name:       {{ bucket_name }}
+    access_key_id:     {{ access_key_id }}
+    secret_access_key: {{ secret_access_key }}
+    insecure:          false
+
+storage:
+  engine: tsdb

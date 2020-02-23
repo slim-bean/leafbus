@@ -13,6 +13,7 @@ docker buildx use bld
 
 ```
  docker buildx build --platform linux/arm64 -t slimbean/cortex:latest -f cmd/cortex/Dockerfile --push .
+ docker build -t slimbean/cortex-querier:latest -f cmd/cortex/Dockerfile .
 ```
 
 `export DOCKER_HOST="ssh://ubuntu@leaf.edjusted.com"`
@@ -24,6 +25,10 @@ docker buildx use bld
 
 ```yaml
 auth_enabled: false
+
+server:
+  http_listen_port: 8002
+  grpc_listen_port: 9002
 
 ingester:
   max_transfer_retries: 1

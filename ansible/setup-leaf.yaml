@@ -6,10 +6,14 @@
   roles:
     - node_exporter
   tasks:
+    - name: Load AWS vars
+      include_vars: aws_vars.yaml
+      tags:
+        - cortex-config
     - name: Copy agent config
       copy:
-        src: files/agent-config.yml
-        dest: /home/ubuntu/agent-config.yml
+        src: files/agent-config.yaml
+        dest: /home/ubuntu/agent-config.yaml
       tags:
         - agent-config
         - agent
@@ -27,6 +31,26 @@
         enabled: yes
       tags:
         - agent
+    - name: Create cortex chunks dir
+      file:
+        path: /srv/cortex-tsdb-ingester/
+        state: directory
+        mode: '0755'
+      tags:
+        - cortex-config
+    - name: Create cortex config dir
+      file:
+        path: /home/ubuntu/cortex/
+        state: directory
+        mode: '0755'
+      tags:
+        - cortex-config
+    - name: Copy cortex config
+      template:
+        src: files/cortex-config.yaml
+        dest: /home/ubuntu/cortex/
+      tags:
+        - cortex-config
     - name: Create loki chunks dir
       file:
         path: /srv/loki/

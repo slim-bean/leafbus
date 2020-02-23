@@ -3,6 +3,7 @@ module github.com/slim-bean/leafbus
 go 1.13
 
 require (
+	github.com/adrianmo/go-nmea v1.1.0 // indirect
 	github.com/brutella/can v0.0.1
 	github.com/cortexproject/cortex v0.4.0
 	github.com/d2r2/go-i2c v0.0.0-20191123181816-73a8a799d6bc
