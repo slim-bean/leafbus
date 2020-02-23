@@ -8,6 +8,27 @@ services:
       - 8002:8002
     volumes:
       - "./config.yaml:/etc/cortex/config.yaml"
+#  thanos-store:
+#    image: quay.io/thanos/thanos:v0.10.1
+#    volumes:
+#      - "./bucket.yaml:/etc/thanos/bucket_config.yaml"
+#    command:
+#      - 'store'
+#      - '--log.level=debug'
+#      - '--grpc-address=0.0.0.0:10091'
+#      - '--http-address=0.0.0.0:10902'
+#      - '--data-dir=/tmp/thanos/store'
+#      - '--objstore.config-file=/etc/thanos/bucket_config.yaml'
+#  thanos-querier:
+#    image: quay.io/thanos/thanos:v0.10.1
+#    command:
+#      - 'query'
+#      - '--grpc-address=0.0.0.0:10091'
+#      - '--http-address=0.0.0.0:10902'
+#      - '--query.replica-label=replica'
+#      - '--store=thanos-store:10091'
+#    ports:
+#      - 10902:10902
   grafana:
     image: grafana/grafana:dev
     ports:
