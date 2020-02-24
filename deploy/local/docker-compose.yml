@@ -8,6 +8,7 @@ services:
       - 8002:8002
     volumes:
       - "./config.yaml:/etc/cortex/config.yaml"
+      - "/Users/ewelch/docker/leaf_cortex:/srv/tsdb-sync"
 #  thanos-store:
 #    image: quay.io/thanos/thanos:v0.10.1
 #    volumes:
@@ -39,4 +40,5 @@ services:
 
 volumes:
   grafana-storage:
+  tsdb-sync:
 
