@@ -123,6 +123,28 @@ Challenges:
 
 Eliminating variables
 
+how we do streaming backend plugin 
+
+philisophical: do we want to be in a world where we have to send all this to the cloud.  
+
+ui to manage the agent to control what gets uploaded 
+
+low resolution to send data with grafana cloud
+
+braking threshold, every 20 seconds sending data, slam on brakes, cross threshold send high resolution for that timeframe
+
+buffered data....
+
+buttons in grafana, 
+
+capture images every 20s display as annotations
+
+stuff images into Loki, hikvision, store images every 
+
+overlaying on maps
+
+hexbin for data over time
+
 
 
 

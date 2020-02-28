@@ -4,8 +4,8 @@ After=network.target
 
 [Service]
 Type=simple
-User=ubuntu
-ExecStart=/home/ubuntu/agent -config.file=/home/ubuntu/agent-config.yaml
+User=pi
+ExecStart=/home/pi/agent -config.file=/home/pi/agent-config.yaml
 Restart=always
 RestartSec=10
 

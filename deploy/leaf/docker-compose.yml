@@ -11,7 +11,7 @@ services:
       - 8002:8002
       - 9002:9002
     volumes:
-      - "/home/ubuntu/cortex/cortex-config.yaml:/etc/cortex/cortex-config.yaml"
+      - "/home/pi/cortex/cortex-config.yaml:/etc/cortex/cortex-config.yaml"
       - "/srv/cortex-tsdb-ingester:/srv/cortex-tsdb-ingester"
   loki:
     image: grafana/loki:master-a4d671b
@@ -21,7 +21,7 @@ services:
     #restart: always
     volumes:
       - "/srv/loki:/var/lib/loki"
-      - "/home/ubuntu/loki/loki-config.yaml:/etc/loki/loki-config.yaml"
+      - "/home/pi/loki/loki-config.yaml:/etc/loki/loki-config.yaml"
     ports:
       - 8003:8003
       - 9003:9003
@@ -34,7 +34,7 @@ services:
     ports:
       - 3000:3000
     volumes:
-      - "/home/ubuntu/grafana:/var/lib/grafana"
+      - "/home/pi/grafana:/var/lib/grafana"
 
 
 
