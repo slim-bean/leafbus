@@ -227,19 +227,19 @@ func reuseTimeseries(ts *TimeSeries) {
 
 func reusePackets(ps []*Packet) {
 	// For each packet
-	for i := range ps {
-		// For each label in the packets label slice
-		for j := range ps[i].Labels {
-			// Return the label
-			labelPool.Put(ps[i].Labels[j])
-		}
-		// Clear out the label slice
-		ps[i].Labels = ps[i].Labels[:0]
-		// Return the sample
-		samplePool.Put(ps[i].Sample)
-		// Return the packet
-		packetPool.Put(ps[i])
-	}
+	//for i := range ps {
+	//	// For each label in the packets label slice
+	//	for j := range ps[i].Labels {
+	//		// Return the label
+	//		labelPool.Put(ps[i].Labels[j])
+	//	}
+	//	// Clear out the label slice
+	//	ps[i].Labels = ps[i].Labels[:0]
+	//	// Return the sample
+	//	samplePool.Put(ps[i].Sample)
+	//	// Return the packet
+	//	packetPool.Put(ps[i])
+	//}
 	// Clear out the packet slice
 	ps = ps[:0]
 	// Return the packet slice

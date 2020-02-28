@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/brutella/can"
+	"github.com/cortexproject/cortex/pkg/ingester/client"
 	"github.com/prometheus/prometheus/pkg/labels"
 
 	"github.com/slim-bean/leafbus/pkg/stream"
@@ -86,20 +87,53 @@ func (h *Handler) Handle(frame can.Frame) {
 		ts := time.Now()
 		h.SendMetric("battery_amps", nil, ts, float64(battCurrent))
 		h.SendMetric("battery_volts", nil, ts, float64(currVoltage))
+	case 0x5BC:
+		//GID
+		if len(h.cortex.data) >= 100 {
+			log.Println("Ignoring packet, send buffer is full")
+			return
+		}
+		gid := (uint16(frame.Data[0]) << 2) | (uint16(frame.Data[1]) >> 6)
+		ts := time.Now()
+		h.SendMetric("gid", nil, ts, float64(gid))
+
 	}
 }
 
 func (h *Handler) SendMetric(metricName string, additionalLabels labels.Labels, timestamp time.Time, val float64) {
-	p := packetPool.Get().(*Packet)
-	ts := timestamp.UnixNano() / int64(time.Millisecond)
-	p.Sample.TimestampMs = ts
-	p.Sample.Value = val
-	l := labelPool.Get().(labels.Label)
-	l.Name = name
-	l.Value = metricName
-	p.Labels = append(p.Labels, l)
-	if additionalLabels != nil {
-		p.Labels = append(p.Labels, additionalLabels...)
+	//p := packetPool.Get().(*Packet)
+	l := labels.Label{
+		Name:  name,
+		Value: metricName,
 	}
+	var ls labels.Labels
+	if additionalLabels != nil {
+		ls = make(labels.Labels, 0, len(additionalLabels)+1)
+		ls = append(ls, l)
+		for _, al := range additionalLabels {
+			ls = append(ls, al)
+		}
+	} else {
+		ls = labels.Labels{l}
+	}
+
+	p := &Packet{
+		Labels: ls,
+		Sample: client.Sample{
+			TimestampMs: timestamp.UnixNano() / int64(time.Millisecond),
+			Value:       val,
+		},
+	}
+	//ts := timestamp.UnixNano() / int64(time.Millisecond)
+	//p.Sample.TimestampMs = ts
+	//p.Sample.Value = val
+	////l := labelPool.Get().(labels.Label)
+	//labels.New()
+	//l.Name = name
+	//l.Value = metricName
+	//p.Labels = append(p.Labels, l)
+	//if additionalLabels != nil {
+	//	p.Labels = append(p.Labels, additionalLabels...)
+	//}
 	h.cortex.data <- p
 }
