@@ -28,3 +28,9 @@ gps:
 	env GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags '-extldflags "-static"' -o cmd/gps/gps ./cmd/gps/main.go
 send-gps: gps
 	scp cmd/gps/gps pi@leaf.edjusted.com:
+
+cam:
+	env GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=0 go build -ldflags '-extldflags "-static"' -o cmd/cam/cam ./cmd/cam/main.go
+	upx cmd/cam/cam
+send-cam: cam
+	scp cmd/cam/cam pi@leaf.edjusted.com:

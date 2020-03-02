@@ -22,7 +22,8 @@ import (
 )
 
 func main() {
-	address := flag.String("cortex-address", "localhost:9002", "GRPC address and port to find cortex")
+	cortexAddress := flag.String("cortex-address", "localhost:9002", "GRPC address and port to find cortex")
+	lokiAddress := flag.String("loki-address", "localhost:9003", "GRPC address and port to find cortex")
 
 	log.Println("Finding interface")
 	iface, err := net.InterfaceByName("can0")
@@ -43,7 +44,7 @@ func main() {
 	}
 
 	log.Println("Creating handler")
-	handler, err := push.NewHandler(*address)
+	handler, err := push.NewHandler(*cortexAddress, *lokiAddress)
 	if err != nil {
 		log.Fatal(err)
 	}

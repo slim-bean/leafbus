@@ -6,6 +6,7 @@ import (
 
 	"github.com/brutella/can"
 	"github.com/cortexproject/cortex/pkg/ingester/client"
+	"github.com/grafana/loki/pkg/logproto"
 	"github.com/prometheus/prometheus/pkg/labels"
 
 	"github.com/slim-bean/leafbus/pkg/stream"
@@ -17,6 +18,7 @@ const (
 
 type Handler struct {
 	cortex *cortex
+	loki   *loki
 }
 
 func (h *Handler) Follow(name string, follower *stream.Follower) {
@@ -27,13 +29,18 @@ func (h *Handler) Unfollow(name string, follower *stream.Follower) {
 	h.cortex.unfollow(name, follower)
 }
 
-func NewHandler(address string) (*Handler, error) {
-	c, err := newCortex(address)
+func NewHandler(cortexAddress string, lokiAddress string) (*Handler, error) {
+	c, err := newCortex(cortexAddress)
+	if err != nil {
+		return nil, err
+	}
+	l, err := newLoki(lokiAddress)
 	if err != nil {
 		return nil, err
 	}
 	h := &Handler{
 		cortex: c,
+		loki:   l,
 	}
 	return h, nil
 }
@@ -136,4 +143,14 @@ func (h *Handler) SendMetric(metricName string, additionalLabels labels.Labels, 
 	//	p.Labels = append(p.Labels, additionalLabels...)
 	//}
 	h.cortex.data <- p
+}
+
+func (h *Handler) SendLog(labels labels.Labels, timestamp time.Time, entry string) {
+	h.loki.data <- &singleLog{
+		Labels: labels,
+		Entry: &logproto.Entry{
+			Timestamp: timestamp,
+			Line:      entry,
+		},
+	}
 }

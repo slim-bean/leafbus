@@ -16,19 +16,19 @@ import (
 )
 
 var (
-	batchSize = 1000
+	cortexBatchSize = 1000
 
 	timeSeriesPool = sync.Pool{
 		New: func() interface{} {
 			return &TimeSeries{
-				Labels:  make([]labels.Labels, 0, batchSize),
-				Samples: make([]client.Sample, 0, batchSize),
+				Labels:  make([]labels.Labels, 0, cortexBatchSize),
+				Samples: make([]client.Sample, 0, cortexBatchSize),
 			}
 		},
 	}
 	packetsPool = sync.Pool{
 		New: func() interface{} {
-			return make([]*Packet, 0, batchSize)
+			return make([]*Packet, 0, cortexBatchSize)
 		},
 	}
 	packetPool = sync.Pool{
@@ -66,6 +66,7 @@ type Packet struct {
 
 type cortex struct {
 	cortex    client.HealthAndIngesterClient
+	ctx       context.Context
 	data      chan *Packet
 	active    []*Packet
 	actMtx    sync.Mutex
@@ -85,6 +86,7 @@ func newCortex(address string) (*cortex, error) {
 	}
 	c := &cortex{
 		cortex:    clt,
+		ctx:       context.Background(),
 		data:      make(chan *Packet, 100),
 		active:    packetsPool.Get().([]*Packet),
 		streamMap: map[string][]*ratedFollower{},
@@ -183,7 +185,7 @@ func (c *cortex) run() {
 			c.active = append(c.active, p)
 
 			// If batch is full, send to cortex
-			if len(c.active) == batchSize {
+			if len(c.active) == cortexBatchSize {
 				sending := c.active
 				c.active = packetsPool.Get().([]*Packet)
 				go c.push(sending)
@@ -201,8 +203,7 @@ func (c *cortex) push(ps []*Packet) {
 	}
 	// FIXME if this function took an array of pointers to ts.Samples I think it would save a bunch of copys and allocs
 	wr := client.ToWriteRequest(ts.Labels, ts.Samples, client.API)
-	ctx := context.Background()
-	ctx, cancel := context.WithTimeout(ctx, time.Second*5)
+	ctx, cancel := context.WithTimeout(c.ctx, time.Second*2)
 	defer cancel()
 	log.Printf("Sending batch to cortex\n")
 	ctx = user.InjectOrgID(ctx, "leaf")
