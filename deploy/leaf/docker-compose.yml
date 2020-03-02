@@ -17,7 +17,7 @@ services:
     image: grafana/loki:master-a4d671b
     environment:
       - GODEBUG=madvdontneed=1
-    command: "-config.file=/etc/loki/loki-config.yaml"
+    command: "-config.file=/etc/loki/loki-config.yaml -log.level=debug"
     #restart: always
     volumes:
       - "/srv/loki:/var/lib/loki"

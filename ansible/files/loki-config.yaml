@@ -1,9 +1,13 @@
 auth_enabled: false
 
+querier:
+  query_ingesters_within: 1m
+
 server:
   http_listen_port: 8003
   grpc_listen_port: 9003
   grpc_server_max_recv_msg_size: 16777216
+  grpc_server_max_send_msg_size: 16777216
 
 ingester:
   lifecycler:

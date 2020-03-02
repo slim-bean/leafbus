@@ -34,3 +34,9 @@ cam:
 	upx cmd/cam/cam
 send-cam: cam
 	scp cmd/cam/cam pi@leaf.edjusted.com:
+
+reader:
+	env GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=0 go build -ldflags '-extldflags "-static"' -o cmd/reader/reader ./cmd/reader/main.go
+	upx cmd/reader/reader
+send-reader: reader
+	scp cmd/reader/reader pi@leaf.edjusted.com:

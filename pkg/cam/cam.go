@@ -1,6 +1,7 @@
 package cam
 
 import (
+	"encoding/base64"
 	"io/ioutil"
 	"log"
 	"os"
@@ -43,8 +44,8 @@ func (c *Cam) trigger() {
 	}
 
 	for {
-		time.Sleep(30 * time.Second)
-		log.Println("Sending signal to capture image")
+		time.Sleep(5 * time.Second)
+		//log.Println("Sending signal to capture image")
 
 		err = c.cmd.Process.Signal(syscall.SIGUSR1)
 		if err != nil {
@@ -82,9 +83,9 @@ func (c *Cam) read() {
 					Value: "camera",
 				},
 			}
-			log.Println("Found image, sending to Loki")
+			log.Println("Found image")
 
-			c.handler.SendLog(lbls, time.Now(), string(bytes))
+			c.handler.SendLog(lbls, time.Now(), base64.StdEncoding.EncodeToString(bytes))
 
 			err = os.Remove(imageFile)
 			if err != nil {

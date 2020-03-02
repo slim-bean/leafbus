@@ -115,5 +115,7 @@ func (l *loki) push(streams []*logproto.Stream) {
 	_, err := l.loki.(logproto.PusherClient).Push(ctx, req)
 	if err != nil {
 		log.Println("Failed to send logs to Loki:", err)
+		return
 	}
+	log.Println("Batch sent to Loki")
 }
