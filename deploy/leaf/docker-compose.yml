@@ -14,11 +14,11 @@ services:
       - "/home/pi/cortex/cortex-config.yaml:/etc/cortex/cortex-config.yaml"
       - "/srv/cortex-tsdb-ingester:/srv/cortex-tsdb-ingester"
   loki:
-    image: grafana/loki:master-a4d671b
+    image: slimbean/loki:latest
     environment:
       - GODEBUG=madvdontneed=1
     command: "-config.file=/etc/loki/loki-config.yaml -log.level=debug"
-    #restart: always
+    restart: always
     volumes:
       - "/srv/loki:/var/lib/loki"
       - "/home/pi/loki/loki-config.yaml:/etc/loki/loki-config.yaml"
@@ -28,6 +28,7 @@ services:
   grafana:
     image: grafana/grafana:6.6.2
     user: "1000"
+    restart: always
     environment:
       - GF_PANELS_DISABLE_SANITIZE_HTML=true
     network_mode: "host"

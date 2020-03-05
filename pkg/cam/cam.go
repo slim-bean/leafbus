@@ -18,40 +18,73 @@ const (
 	imageFile = "/dev/shm/img.jpg"
 )
 
+var (
+	camLabels = labels.Labels{
+		labels.Label{
+			Name:  "job",
+			Value: "camera",
+		},
+	}
+)
+
 type Cam struct {
-	cmd     *exec.Cmd
-	handler *push.Handler
+	cmd       *exec.Cmd
+	handler   *push.Handler
+	runChan   chan bool
+	shouldRun bool
 }
 
 func NewCam(handler *push.Handler) (*Cam, error) {
-	cmd := exec.Command("/usr/bin/raspistill", "--signal", "--encoding", "jpg", "-w", "1280", "-h", "960", "-o", imageFile)
+
 	c := &Cam{
-		cmd:     cmd,
-		handler: handler,
+		cmd:       nil,
+		handler:   handler,
+		runChan:   make(chan bool),
+		shouldRun: false,
 	}
 	go c.trigger()
 	go c.read()
 	return c, nil
 }
 
+func (c *Cam) Start() {
+	c.runChan <- true
+}
+
+func (c *Cam) Stop() {
+	c.runChan <- false
+}
+
 func (c *Cam) trigger() {
 	log.Println("Running raspistill")
 
-	err := c.cmd.Start()
-	if err != nil {
-		log.Println("Failed to start raspistill:", err)
-		return
-	}
+	//err := c.cmd.Start()
+	//if err != nil {
+	//	log.Println("Failed to start raspistill:", err)
+	//	return
+	//}
+
+	ticker := time.NewTicker(5 * time.Second)
 
 	for {
-		time.Sleep(5 * time.Second)
-		//log.Println("Sending signal to capture image")
-
-		err = c.cmd.Process.Signal(syscall.SIGUSR1)
-		if err != nil {
-			log.Println("Error sending SIGUSR1:", err)
-			kill(c.cmd)
-			return
+		select {
+		case r := <-c.runChan:
+			c.shouldRun = r
+			if r == false {
+				c.killCamera()
+			} else {
+				c.startCamera()
+			}
+		case <-ticker.C:
+			if !c.shouldRun {
+				continue
+			}
+			err := c.cmd.Process.Signal(syscall.SIGUSR1)
+			if err != nil {
+				log.Println("Error sending SIGUSR1:", err)
+				c.killCamera()
+				return
+			}
 		}
 	}
 
@@ -62,7 +95,9 @@ func (c *Cam) read() {
 	for {
 		select {
 		case <-ticker.C:
-
+			if !c.shouldRun {
+				continue
+			}
 			_, err := os.Stat(imageFile)
 			if err != nil && os.IsNotExist(err) {
 				continue
@@ -77,15 +112,9 @@ func (c *Cam) read() {
 				continue
 			}
 
-			lbls := labels.Labels{
-				labels.Label{
-					Name:  "job",
-					Value: "camera",
-				},
-			}
 			log.Println("Found image")
 
-			c.handler.SendLog(lbls, time.Now(), base64.StdEncoding.EncodeToString(bytes))
+			c.handler.SendLog(camLabels, time.Now(), base64.StdEncoding.EncodeToString(bytes))
 
 			err = os.Remove(imageFile)
 			if err != nil {
@@ -97,9 +126,28 @@ func (c *Cam) read() {
 
 }
 
-func kill(c *exec.Cmd) {
-	err := c.Process.Kill()
+func (c *Cam) startCamera() {
+	if c.cmd != nil {
+		return
+	}
+	cmd := exec.Command("/usr/bin/raspistill", "--signal", "--encoding", "jpg", "-w", "1024", "-h", "768", "-o", imageFile)
+	err := cmd.Start()
+	if err != nil {
+		log.Println("Failed to start raspistill:", err)
+		return
+	}
+	c.cmd = cmd
+
+}
+
+func (c *Cam) killCamera() {
+	if c.cmd == nil || c.cmd.Process == nil {
+		return
+	}
+	err := c.cmd.Process.Kill()
 	if err != nil {
 		log.Println("Error killing the raspistill process!, it may still be running: ", err)
 	}
+	_ = c.cmd.Wait()
+	c.cmd = nil
 }

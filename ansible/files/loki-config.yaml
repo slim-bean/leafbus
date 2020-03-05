@@ -1,7 +1,7 @@
 auth_enabled: false
 
 querier:
-  query_ingesters_within: 1m
+  query_ingesters_within: 15m
 
 server:
   http_listen_port: 8003
@@ -17,10 +17,12 @@ ingester:
         store: inmemory
       replication_factor: 1
     final_sleep: 0s
+    normalise_tokens: true
   chunk_idle_period: 20m  # Set longer than max_chunk_age so that everything gets flushed at 15m
   chunk_retain_period: 30s
+  chunk_encoding: snappy
   max_transfer_retries: 0
-  chunk_target_size: 1048576 # 1MB
+  chunk_target_size: 2097152 # 2MB
   max_chunk_age: 15m
 
 schema_config:

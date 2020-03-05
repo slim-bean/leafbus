@@ -14,7 +14,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"github.com/slim-bean/leafbus/pkg/cam"
 	"github.com/slim-bean/leafbus/pkg/charge"
+	"github.com/slim-bean/leafbus/pkg/gps"
 	"github.com/slim-bean/leafbus/pkg/hydra"
 	"github.com/slim-bean/leafbus/pkg/ms4525"
 	"github.com/slim-bean/leafbus/pkg/push"
@@ -45,6 +47,18 @@ func main() {
 
 	log.Println("Creating handler")
 	handler, err := push.NewHandler(*cortexAddress, *lokiAddress)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Println("Creating GPS")
+	gps, err := gps.NewGPS(handler, "/dev/ttyAMA0")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Println("Creatign Cam")
+	cam, err := cam.NewCam(handler)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -91,13 +105,17 @@ func main() {
 	http.HandleFunc("/control", func(writer http.ResponseWriter, request *http.Request) {
 		run := request.URL.Query().Get("run")
 		if strings.ToLower(run) == "true" {
-			fmt.Println("Starting ms4525")
+			log.Println("Starting Services")
 			ms.Start()
+			gps.Start()
+			cam.Start()
 			writer.WriteHeader(http.StatusOK)
 			return
 		} else if strings.ToLower(run) == "false" {
-			fmt.Println("Stopping ms4525")
+			log.Println("Stopping Services")
 			ms.Stop()
+			gps.Stop()
+			cam.Stop()
 			writer.WriteHeader(http.StatusOK)
 			return
 		}

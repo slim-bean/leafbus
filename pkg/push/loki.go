@@ -18,7 +18,7 @@ import (
 )
 
 var (
-	lokiBatchSize = 1
+	lokiBatchSize = 10
 )
 
 type loki struct {
