@@ -5,7 +5,7 @@ services:
     image: slimbean/cortex:latest
     environment:
       - GODEBUG=madvdontneed=1
-    command: "-config.file=/etc/cortex/cortex-config.yaml -target=writer"
+    command: "-config.file=/etc/cortex/cortex-config.yaml"
     restart: always
     ports:
       - 8002:8002
@@ -13,6 +13,7 @@ services:
     volumes:
       - "/home/pi/cortex/cortex-config.yaml:/etc/cortex/cortex-config.yaml"
       - "/srv/cortex-tsdb-ingester:/srv/cortex-tsdb-ingester"
+      - "/srv/cortex-tsdb:/srv/cortex-tsdb"
   loki:
     image: slimbean/loki:latest
     environment:

@@ -25,10 +25,13 @@ tsdb:
   ship_interval: 1m
   block_ranges_period: [ 5m ]
   retention_period: 24h
-  backend: s3
+  backend: filesystem
 
   bucket_store:
     sync_dir: /srv/cortex-tsdb-querier
+
+  filesystem:
+    directory: /srv/cortex-tsdb
 
   s3:
     endpoint:          {{ endpoint }}

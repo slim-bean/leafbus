@@ -47,6 +47,13 @@
         mode: '0755'
       tags:
         - cortex-config
+    - name: Create cortex chunks dir
+      file:
+        path: /srv/cortex-tsdb/
+        state: directory
+        mode: '0755'
+      tags:
+        - cortex-config
     - name: Create cortex config dir
       file:
         path: /home/pi/cortex/
