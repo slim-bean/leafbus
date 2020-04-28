@@ -1,9 +1,9 @@
 server:
   log_level: info
-  http_listen_port: 12345
+  http_listen_port: 8004
 
 prometheus:
-  wal_directory: /home/pi/agent-wal
+  #wal_directory: /home/pi/agent-wal
   global:
     scrape_interval: 15s
   configs:
@@ -11,7 +11,7 @@ prometheus:
       scrape_configs:
         - job_name: agent
           static_configs:
-            - targets: ['127.0.0.1:12345']
+            - targets: ['127.0.0.1:8004']
         - job_name: cortex
           static_configs:
             - targets: ['127.0.0.1:8002']

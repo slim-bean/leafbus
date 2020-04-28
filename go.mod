@@ -16,7 +16,7 @@ require (
 	github.com/golang/lint v0.0.0-20180702182130-06c8688daad7 // indirect
 	github.com/grafana/loki v1.3.0
 	github.com/mattes/migrate v1.3.1 // indirect
-	github.com/prometheus/client_golang v1.4.1 // indirect
+	github.com/prometheus/client_golang v1.4.1
 	github.com/prometheus/common v0.9.1
 	github.com/prometheus/prometheus v1.8.2-0.20190918104050-8744afdd1ea0
 	github.com/rivo/tview v0.0.0-20200127143856-e8d152077496

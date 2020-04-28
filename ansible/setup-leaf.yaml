@@ -15,10 +15,17 @@
         mode: '0755'
       tags:
         - grafana
-    - name: Load AWS vars
-      include_vars: aws_vars.yaml
+#    - name: Load AWS vars
+#      include_vars: aws_vars.yaml
+#      tags:
+#        - cortex-config
+    - name: Create agent wal dir
+      file:
+        path: /srv/agent-wal/
+        state: directory
+        mode: '0755'
       tags:
-        - cortex-config
+        - agent-config
     - name: Copy agent config
       copy:
         src: files/agent-config.yaml
@@ -26,20 +33,20 @@
       tags:
         - agent-config
         - agent
-    - name: Copy systemd file
-      copy:
-        src: files/agent.service
-        dest: /etc/systemd/system/agent.service
-      tags:
-        - agent
-    - name: Setup agent service
-      systemd:
-        daemon_reload: yes
-        name: agent
-        state: restarted
-        enabled: yes
-      tags:
-        - agent
+#    - name: Copy systemd file
+#      copy:
+#        src: files/agent.service
+#        dest: /etc/systemd/system/agent.service
+#      tags:
+#        - agent
+#    - name: Setup agent service
+#      systemd:
+#        daemon_reload: yes
+#        name: agent
+#        state: restarted
+#        enabled: yes
+#      tags:
+#        - agent
     - name: Create cortex chunks dir
       file:
         path: /srv/cortex-tsdb-ingester/
@@ -51,7 +58,7 @@
       file:
         path: /srv/cortex-tsdb/
         state: directory
-        mode: '0755'
+        mode: '0777'
       tags:
         - cortex-config
     - name: Create cortex config dir
@@ -71,7 +78,7 @@
       file:
         path: /srv/loki/
         state: directory
-        mode: '0755'
+        mode: '0777'
       tags:
         - loki-config
     - name: Create loki config dir

@@ -15,7 +15,7 @@ services:
       - "/srv/cortex-tsdb-ingester:/srv/cortex-tsdb-ingester"
       - "/srv/cortex-tsdb:/srv/cortex-tsdb"
   loki:
-    image: slimbean/loki:latest
+    image: grafana/loki:master-577d8eb
     environment:
       - GODEBUG=madvdontneed=1
     command: "-config.file=/etc/loki/loki-config.yaml -log.level=debug"
@@ -27,7 +27,7 @@ services:
       - 8003:8003
       - 9003:9003
   grafana:
-    image: grafana/grafana:6.6.2
+    image: grafana/grafana:6.7.3
     user: "1000"
     restart: always
     environment:
@@ -37,6 +37,17 @@ services:
       - 3000:3000
     volumes:
       - "/home/pi/grafana:/var/lib/grafana"
+#  agent:
+#    image: slimbean/agent:latest
+#    environment:
+#      - GODEBUG=madvdontneed=1
+#    network_mode: "host"
+#    restart: always
+#    ports:
+#      - 8004:8004
+#    volumes:
+#      - "/home/pi/agent-config.yaml:/etc/agent/agent.yaml"
+#      - "/srv/agent-wal:/etc/agent/data"
 
 
 

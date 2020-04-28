@@ -2,13 +2,23 @@ version: "3.7"
 
 services:
   cortex:
-    image: slimbean/cortex-querier:latest
-    command: "-config.file=/etc/cortex/config.yaml -target=querier -server.http-listen-port=8002 -querier.query-ingesters-within=-10s"
+    image: slimbean/cortex:latest-amd
+    command: "-config.file=/etc/cortex/config.yaml -server.http-listen-port=8002 -querier.query-ingesters-within=-10s"
     ports:
       - 8002:8002
     volumes:
-      - "./config.yaml:/etc/cortex/config.yaml"
-      - "/Users/ewelch/docker/leaf_cortex:/srv/tsdb-sync"
+      - "/home/ed/leaf/cortex:/srv/cortex"
+      - "./cortex-config.yaml:/etc/cortex/config.yaml"
+
+  loki:
+    image: grafana/loki:master-577d8eb
+    command: "-config.file=/etc/loki/loki-config.yaml -log.level=debug"
+    volumes:
+      - "/home/ed/leaf/loki:/var/lib/loki"
+      - "./loki-config.yaml:/etc/loki/loki-config.yaml"
+    ports:
+      - 8003:8003
+      - 9003:9003
 #  thanos-store:
 #    image: quay.io/thanos/thanos:v0.10.1
 #    volumes:
@@ -31,14 +41,14 @@ services:
 #    ports:
 #      - 10902:10902
   grafana:
-    image: grafana/grafana:dev
+    image: grafana/grafana:6.7.3
     ports:
       - "3000:3000"
+    network_mode: "host"
     volumes:
       - "grafana-storage:/var/lib/grafana"
 
 
 volumes:
   grafana-storage:
-  tsdb-sync:
 

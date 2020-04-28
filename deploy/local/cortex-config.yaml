@@ -20,17 +20,17 @@ ingester:
 
 
 tsdb:
-  dir: /srv/cortex-tsdb-ingester
+  dir: /srv/cortex/cortex-tsdb-ingester
   ship_interval: 1m
-  block_ranges_period: [ 15m ]
+  block_ranges_period: [ 2h ]
   retention_period: 24h
   backend: filesystem
 
   bucket_store:
-    sync_dir: /srv/cortex-tsdb-querier
+    sync_dir: /srv/cortex/cortex-tsdb-querier
 
   filesystem:
-    dir: /srv/cortex-tsdb
+    dir: /srv/cortex/cortex-tsdb
 
 storage:
   engine: tsdb

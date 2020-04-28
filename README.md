@@ -11,12 +11,22 @@ docker buildx inspect bld --bootstrap
 docker buildx use bld
 ```
 
+https://stackoverflow.com/questions/60080264/docker-cannot-build-multi-platform-images-with-docker-buildx
+
+738  2020-04-24 08:51:50 sudo apt purge --auto-remove qemu-user-static qemu-user-binfmt binfmt-support
+  739  2020-04-24 08:52:45 sudo apt install qemu-user-static
+  740  2020-04-24 08:53:07 sudo systemctl restart docker
+  741  2020-04-24 08:53:12 docker buildx rm raspi
+  742  2020-04-24 08:53:23 docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+  743  2020-04-24 08:53:41 docker buildx create --name builder --driver docker-container --use
+  744  2020-04-24 08:53:50 docker buildx inspect --bootstrap
+
 ```
  docker buildx build --platform linux/arm/v7 -t slimbean/cortex:latest -f cmd/cortex/Dockerfile --push .
  docker build -t slimbean/cortex-querier:latest -f cmd/cortex/Dockerfile .
 ```
 
-`export DOCKER_HOST="ssh://ubuntu@leaf.edjusted.com"`
+`export DOCKER_HOST="ssh://pi@leaf.edjusted.com"`
 
 `docker-compose pull leafbus`
 `docker-compose up -d --force-recreate`

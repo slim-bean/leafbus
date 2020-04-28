@@ -130,7 +130,7 @@ func (c *Cam) startCamera() {
 	if c.cmd != nil {
 		return
 	}
-	cmd := exec.Command("/usr/bin/raspistill", "--signal", "--encoding", "jpg", "-w", "1024", "-h", "768", "-o", imageFile)
+	cmd := exec.Command("/usr/bin/raspistill", "--signal", "--encoding", "jpg", "-w", "640", "-h", "480", "-o", imageFile)
 	err := cmd.Start()
 	if err != nil {
 		log.Println("Failed to start raspistill:", err)

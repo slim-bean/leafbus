@@ -1,6 +1,8 @@
 package push
 
 import (
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"log"
 	"time"
 
@@ -14,6 +16,19 @@ import (
 
 const (
 	name = "__name__"
+)
+
+var (
+	canMessages = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "leafbus",
+		Name:      "can_messages_total",
+		Help:      "Count of all messages received on canbus",
+	})
+	messagesSentCortex = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "leafbus",
+		Name:      "messages_sent_total",
+		Help:      "Count of all messages from canbus sent to Cortex.",
+	})
 )
 
 type Handler struct {
@@ -46,7 +61,7 @@ func NewHandler(cortexAddress string, lokiAddress string) (*Handler, error) {
 }
 
 func (h *Handler) Handle(frame can.Frame) {
-
+	canMessages.Inc()
 	switch frame.ID {
 	case 0x55B:
 		//SOC
@@ -108,6 +123,7 @@ func (h *Handler) Handle(frame can.Frame) {
 }
 
 func (h *Handler) SendMetric(metricName string, additionalLabels labels.Labels, timestamp time.Time, val float64) {
+	messagesSentCortex.Inc()
 	//p := packetPool.Get().(*Packet)
 	l := labels.Label{
 		Name:  name,
