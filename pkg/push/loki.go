@@ -28,6 +28,7 @@ type loki struct {
 	active     map[model.Fingerprint]*logproto.Stream
 	batchCount int
 	actMtx     sync.Mutex
+	lastSent   time.Time
 }
 
 func newLoki(address string) (*loki, error) {
@@ -41,10 +42,11 @@ func newLoki(address string) (*loki, error) {
 		return nil, err
 	}
 	l := &loki{
-		loki:   clt,
-		data:   make(chan *singleLog),
-		ctx:    context.Background(),
-		active: make(map[model.Fingerprint]*logproto.Stream),
+		loki:     clt,
+		data:     make(chan *singleLog),
+		ctx:      context.Background(),
+		active:   make(map[model.Fingerprint]*logproto.Stream),
+		lastSent: time.Now(),
 	}
 	go l.run()
 	return l, nil
@@ -56,14 +58,18 @@ type singleLog struct {
 }
 
 func (l *loki) run() {
+	ticker := time.NewTicker(5 * time.Second)
 	for {
 		select {
+		case <-ticker.C:
+			l.actMtx.Lock()
+			l.checkAndPush()
+			l.actMtx.Unlock()
+
 		case p := <-l.data:
-
-			fp := client.FastFingerprint(client.FromLabelsToLabelAdapters(p.Labels))
-
 			// Add to batch
 			l.actMtx.Lock()
+			fp := client.FastFingerprint(client.FromLabelsToLabelAdapters(p.Labels))
 
 			if _, ok := l.active[fp]; ok {
 				l.active[fp].Entries = append(l.active[fp].Entries, *p.Entry)
@@ -73,26 +79,32 @@ func (l *loki) run() {
 				l.active[fp] = &logproto.Stream{Labels: p.Labels.String(), Entries: []logproto.Entry{*p.Entry}}
 			}
 			l.batchCount++
-
-			// If batch is full, send to cortex
-			if l.batchCount == lokiBatchSize {
-				streams := make([]*logproto.Stream, len(l.active))
-				i := 0
-				for fp := range l.active {
-					streams[i] = l.active[fp]
-					i++
-				}
-				//log.Println("Map:", l.active)
-				//log.Println("Streams:", streams)
-				l.batchCount = 0
-				for fp := range l.active {
-					delete(l.active, fp)
-				}
-
-				go l.push(streams)
-			}
+			l.checkAndPush()
 			l.actMtx.Unlock()
 		}
+	}
+}
+
+func (l *loki) checkAndPush() {
+	// If batch is full or we hit a timeout, send to loki
+	if l.batchCount == lokiBatchSize || time.Since(l.lastSent) > 30*time.Second {
+		if l.batchCount == 0 {
+			return
+		}
+		streams := make([]*logproto.Stream, len(l.active))
+		i := 0
+		for fp := range l.active {
+			streams[i] = l.active[fp]
+			i++
+		}
+		//log.Println("Map:", l.active)
+		//log.Println("Streams:", streams)
+		l.batchCount = 0
+		for fp := range l.active {
+			delete(l.active, fp)
+		}
+		go l.push(streams)
+		l.lastSent = time.Now()
 	}
 }
 
