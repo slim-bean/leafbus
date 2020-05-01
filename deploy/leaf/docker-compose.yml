@@ -15,10 +15,10 @@ services:
       - "/srv/cortex-tsdb-ingester:/srv/cortex-tsdb-ingester"
       - "/srv/cortex-tsdb:/srv/cortex-tsdb"
   loki:
-    image: grafana/loki:master-577d8eb
+    image: grafana/loki:master-989fb10
     environment:
       - GODEBUG=madvdontneed=1
-    command: "-config.file=/etc/loki/loki-config.yaml -log.level=debug"
+    command: "-config.file=/etc/loki/loki-config.yaml -log.level=info"
     restart: always
     volumes:
       - "/srv/loki:/var/lib/loki"
