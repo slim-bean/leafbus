@@ -67,6 +67,11 @@ func (n *GPS) read() {
 		select {
 		case r := <-n.runChan:
 			n.shouldRun = r
+			if r {
+				log.Println("GPS Running")
+			} else {
+				log.Println("GPS Stopped")
+			}
 		case <-ticker.C:
 			if !n.shouldRun {
 				continue

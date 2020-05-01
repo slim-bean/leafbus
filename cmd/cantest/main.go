@@ -1,11 +1,13 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"unsafe"
 
 	"github.com/brutella/can"
@@ -20,11 +22,18 @@ const (
 
 func main() {
 
-	log.Println("Finding interface")
-	iface, err := net.InterfaceByName("can0")
-
+	id := flag.String("id", "", "can message ID in hex without 0x")
+	canBus := flag.String("can", "can0", "can bus interface name")
+	flag.Parse()
+	frameID, err := strconv.ParseUint(*id, 16, 64)
 	if err != nil {
-		log.Fatalf("Could not find network interface %s (%v)", "can0", err)
+		log.Fatal("Failed to parse id:", err)
+	}
+
+	log.Println("Finding interface")
+	iface, err := net.InterfaceByName(*canBus)
+	if err != nil {
+		log.Fatalf("Could not find network interface %s (%v)", *canBus, err)
 	}
 	log.Println("Opening interface")
 	conn, err := can.NewReadWriteCloserForInterface(iface)
@@ -56,8 +65,8 @@ func main() {
 		}
 	}
 
-	var frameID uint32
-	frameID = 0x1DB
+	//var frameID uint32
+	//frameID = 0x1DB
 
 	text := tview.NewTextView()
 
@@ -68,7 +77,7 @@ func main() {
 	app := tview.NewApplication()
 
 	log.Println("Creating handler")
-	h := NewHandler(app, table, text, frameID)
+	h := NewHandler(app, table, text, uint32(frameID))
 
 	log.Println("Creating new Bus and subscribing")
 	bus := can.NewBus(conn)
@@ -142,13 +151,13 @@ func (h *Handler) Handle(frame can.Frame) {
 
 			// Even though the doc says the LSB for current is 0.5 it seems to reflect the actual charger current
 			// more accurately when I don't ignore the last bit
-			var battCurrent int16
-			if frame.Data[0]&0b10000000 == 0b10000000 {
-				battCurrent = int16((uint16(frame.Data[0]) << 3) | 0b1111100000000000 | uint16(frame.Data[1]>>6))
-			} else {
-				battCurrent = int16((uint16(frame.Data[0])<<3)&0b0000011111111111 | uint16(frame.Data[1]>>6))
-			}
-			h.text.SetText(fmt.Sprintf("Battery Amps: %v", battCurrent))
+			//var battCurrent int16
+			//if frame.Data[0]&0b10000000 == 0b10000000 {
+			//	battCurrent = int16((uint16(frame.Data[0]) << 3) | 0b1111100000000000 | uint16(frame.Data[1]>>6))
+			//} else {
+			//	battCurrent = int16((uint16(frame.Data[0])<<3)&0b0000011111111111 | uint16(frame.Data[1]>>6))
+			//}
+			//h.text.SetText(fmt.Sprintf("Battery Amps: %v", battCurrent))
 			//var motorAmps int16
 			//if frame.Data[2]&0b00000100 == 0b00000100 {
 			//	motorAmps = int16(((uint16(frame.Data[2]&0b00000111) << 8) | 0b1111100000000000) | uint16(frame.Data[3]))

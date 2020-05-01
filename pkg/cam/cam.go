@@ -71,8 +71,10 @@ func (c *Cam) trigger() {
 		case r := <-c.runChan:
 			c.shouldRun = r
 			if r == false {
+				log.Println("Camera Stopped")
 				c.killCamera()
 			} else {
+				log.Println("Camera Running")
 				c.startCamera()
 			}
 		case <-ticker.C:

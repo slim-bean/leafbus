@@ -2,6 +2,7 @@ package ms4525
 
 import (
 	"fmt"
+	"log"
 	_ "net/http/pprof"
 	"time"
 
@@ -101,6 +102,11 @@ func (m *MS4525) run() {
 
 		case r := <-m.runChan:
 			m.shouldRun = r
+			if r {
+				log.Println("Air Pressure Sensor Running")
+			} else {
+				log.Println("Air Pressure Sensor Stopped")
+			}
 
 		}
 

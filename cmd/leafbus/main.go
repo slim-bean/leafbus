@@ -27,20 +27,29 @@ func main() {
 	cortexAddress := flag.String("cortex-address", "localhost:9002", "GRPC address and port to find cortex")
 	lokiAddress := flag.String("loki-address", "localhost:9003", "GRPC address and port to find cortex")
 
-	log.Println("Finding interface")
-	iface, err := net.InterfaceByName("can0")
-
+	log.Println("Finding interface can0")
+	iface0, err := net.InterfaceByName("can0")
 	if err != nil {
 		log.Fatalf("Could not find network interface %s (%v)", "can0", err)
 	}
-	log.Println("Opening interface")
-	conn, err := can.NewReadWriteCloserForInterface(iface)
+	log.Println("Opening interface can0")
+	conn0, err := can.NewReadWriteCloserForInterface(iface0)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Println("Finding interface can1")
+	iface1, err := net.InterfaceByName("can1")
+	if err != nil {
+		log.Fatalf("Could not find network interface %s (%v)", "can0", err)
+	}
+	log.Println("Opening interface can0")
+	conn1, err := can.NewReadWriteCloserForInterface(iface1)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	log.Println("Creating new Charge Monitor")
-	m, err := charge.NewMonitor("http://172.20.31.75")
+	chargeMonitor, err := charge.NewMonitor("http://172.20.31.75")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -83,10 +92,16 @@ func main() {
 		log.Println(err)
 	}
 
+	handler.RegisterRunListener(ms)
+	handler.RegisterRunListener(gps)
+	handler.RegisterRunListener(cam)
+
 	log.Println("Creating new Bus and subscribing")
-	bus := can.NewBus(conn)
-	bus.SubscribeFunc(m.Handle)
-	bus.SubscribeFunc(handler.Handle)
+	bus0 := can.NewBus(conn0)
+	bus0.SubscribeFunc(chargeMonitor.Handle)
+	bus0.SubscribeFunc(handler.Handle)
+	bus1 := can.NewBus(conn1)
+	bus1.SubscribeFunc(handler.Handle)
 
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt)
@@ -95,7 +110,7 @@ func main() {
 	go func() {
 		select {
 		case <-c:
-			bus.Disconnect()
+			bus0.Disconnect()
 			os.Exit(1)
 		}
 	}()
@@ -105,14 +120,14 @@ func main() {
 	http.HandleFunc("/control", func(writer http.ResponseWriter, request *http.Request) {
 		run := request.URL.Query().Get("run")
 		if strings.ToLower(run) == "true" {
-			log.Println("Starting Services")
+			log.Println("Starting Services from HTTP Request")
 			ms.Start()
 			gps.Start()
 			cam.Start()
 			writer.WriteHeader(http.StatusOK)
 			return
 		} else if strings.ToLower(run) == "false" {
-			log.Println("Stopping Services")
+			log.Println("Stopping Services from HTTP Request")
 			ms.Stop()
 			gps.Stop()
 			cam.Stop()
@@ -136,7 +151,7 @@ func main() {
 	}()
 
 	log.Println("Entering publish loop")
-	err = bus.ConnectAndPublish()
+	err = bus0.ConnectAndPublish()
 	if err != nil {
 		log.Println(err)
 	}
