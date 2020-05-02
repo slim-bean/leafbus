@@ -149,7 +149,7 @@ func (h *Handler) Handle(frame can.Frame) {
 
 			//Calcs
 
-			// Brake Pedal can1 0x1CB
+			// Target Brake Pedal can1 0x1CB
 			//brake := (uint16(frame.Data[2]) << 2) | (uint16(frame.Data[3]) >> 6)
 			//h.text.SetText(fmt.Sprintf("Brake Pedal: %v", brake))
 
@@ -163,6 +163,11 @@ func (h *Handler) Handle(frame can.Frame) {
 			//throttle := (uint16(frame.Data[5]) << 2) | (uint16(frame.Data[6]) >> 6)
 			//h.text.SetText(fmt.Sprintf("Gas Pedal: %v\nMotorA: %v", throttle, motorAmps))
 
+			// Vehicle Speed can1 0x280
+			//speed := float64(uint16(frame.Data[4]) << 8 | uint16(frame.Data[5]))
+			//speed = speed * 0.0062
+			//h.text.SetText(fmt.Sprintf("Speed: %v", speed))
+
 			// friction Brake pressure Pedal can1 0x292
 			//brake := frame.Data[6]
 			//h.text.SetText(fmt.Sprintf("Brake: %v", brake))
@@ -173,9 +178,28 @@ func (h *Handler) Handle(frame can.Frame) {
 			//h.text.SetText(fmt.Sprintf("TurnR: %v\nTurnL: %v",turnR, turnL))
 
 			// Climate Control Power can1 510
-			ccPower := float64(frame.Data[3] >> 1 & 0b00111111)
-			ccPower = ccPower * 0.25
-			h.text.SetText(fmt.Sprintf("Clim P: %v", ccPower))
+			//ccPower := float64(frame.Data[3] >> 1 & 0b00111111)
+			//ccPower = ccPower * 0.25
+			//h.text.SetText(fmt.Sprintf("Clim P: %v", ccPower))
+
+			// GIDS can1 5B3
+			//gid := uint16(frame.Data[4] & 0b00000001) << 8 | uint16(frame.Data[5])
+			//h.text.SetText(fmt.Sprintf("GID: %v", gid))
+
+			// Odometer can1 5C5
+			//odo := uint32(frame.Data[1]) << 16 | uint32(frame.Data[2]) << 8 | uint32(frame.Data[3])
+			//h.text.SetText(fmt.Sprintf("Odo: %v", odo))
+
+			// Headlights can1 625
+			//parkL := frame.Data[1] & 0b01000000 == 0b01000000
+			//lowBeam := frame.Data[1] & 0b00100000 == 0b00100000
+			//highBeam := frame.Data[1] & 0b00010000 == 0b00010000
+			//h.text.SetText(fmt.Sprintf("Park: %v\nLow: %v\nHigh: %v", parkL, lowBeam, highBeam))
+
+			// battery voltage can0 1DB
+			currVoltage := float64((uint16(frame.Data[2]) << 2) | (uint16(frame.Data[3]&0b11000000) >> 6))
+			currVoltage = currVoltage * 0.5
+			h.text.SetText(fmt.Sprintf("Battery V: %v", currVoltage))
 
 			// Even though the doc says the LSB for current is 0.5 it seems to reflect the actual charger current
 			// more accurately when I don't ignore the last bit
