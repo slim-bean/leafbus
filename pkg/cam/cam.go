@@ -64,7 +64,7 @@ func (c *Cam) trigger() {
 	//	return
 	//}
 
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(2 * time.Second)
 
 	for {
 		select {
@@ -93,7 +93,7 @@ func (c *Cam) trigger() {
 }
 
 func (c *Cam) read() {
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(500 * time.Millisecond)
 	for {
 		select {
 		case <-ticker.C:

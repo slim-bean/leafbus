@@ -112,7 +112,7 @@ func (n *GPS) run() {
 			switch m := s.(type) {
 			case nmea.GPRMC:
 				if m.Validity == "A" {
-					n.handler.SendLog(gpsLabels, time.Date(m.Date.YY+2000, time.Month(m.Date.MM), m.Date.DD, m.Time.Hour, m.Time.Minute, m.Time.Second, m.Time.Millisecond*1000000, time.UTC), fmt.Sprintf("%s,%s", nmea.FormatGPS(m.Latitude), nmea.FormatGPS(m.Longitude)))
+					n.handler.SendLog(gpsLabels, time.Date(m.Date.YY+2000, time.Month(m.Date.MM), m.Date.DD, m.Time.Hour, m.Time.Minute, m.Time.Second, m.Time.Millisecond*1000000, time.UTC), fmt.Sprintf("%f,%f", m.Latitude, m.Longitude))
 				} else {
 					log.Println("Invalid GPS Signal")
 				}
@@ -121,9 +121,10 @@ func (n *GPS) run() {
 				//fmt.Printf("Raw sentence: %v\n", m)
 				//fmt.Printf("Time: %s\n", m.Time)
 				//fmt.Printf("Validity: %s\n", m.Validity)
-				//fmt.Printf("Latitude GPS: %s\n", nmea.FormatGPS(m.Latitude))
+				//fmt.Printf("%s,%s\n", fmt.Sprintf("%f", m.Latitude), fmt.Sprintf("%f", m.Longitude))
+				//fmt.Printf("Latitude GPS: %v\n", m.Latitude)
 				//fmt.Printf("Latitude DMS: %s\n", nmea.FormatDMS(m.Latitude))
-				//fmt.Printf("Longitude GPS: %s\n", nmea.FormatGPS(m.Longitude))
+				//fmt.Printf("Longitude GPS: %v\n", m.Longitude)
 				//fmt.Printf("Longitude DMS: %s\n", nmea.FormatDMS(m.Longitude))
 				//fmt.Printf("Speed: %f\n", m.Speed)
 				//fmt.Printf("Course: %f\n", m.Course)

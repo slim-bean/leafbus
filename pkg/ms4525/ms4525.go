@@ -8,6 +8,7 @@ import (
 
 	"github.com/d2r2/go-i2c"
 	"github.com/d2r2/go-logger"
+	"github.com/prometheus/prometheus/pkg/labels"
 
 	"github.com/slim-bean/leafbus/pkg/push"
 )
@@ -19,11 +20,21 @@ const (
 	PressName = "air_pressure"
 )
 
+var (
+	ms4525Label = labels.Labels{
+		labels.Label{
+			Name:  "job",
+			Value: "ms4525",
+		},
+	}
+)
+
 type MS4525 struct {
 	handler   *push.Handler
 	bus       *i2c.I2C
 	runChan   chan bool
 	shouldRun bool
+	calibrate int
 }
 
 func NewMS4525(handler *push.Handler, bus int) (*MS4525, error) {
@@ -38,6 +49,7 @@ func NewMS4525(handler *push.Handler, bus int) (*MS4525, error) {
 		bus:       b,
 		shouldRun: false,
 		runChan:   make(chan bool),
+		calibrate: 0,
 	}
 	go ms.run()
 	return ms, nil
@@ -56,6 +68,8 @@ func (m *MS4525) run() {
 	start := make([]byte, 0)
 	data := make([]byte, 4)
 	ticker := time.NewTicker(10 * time.Millisecond)
+	calVal := 0.0
+	offset := 0.0
 
 	for {
 
@@ -86,7 +100,18 @@ func (m *MS4525) run() {
 			//p.Sample.TimestampMs = ts
 			//pressure := -((float64(uint16(data[0])<<8|uint16(data[1]))-0.1*16383)*(pmax-pmin)/(0.8*16383) + pmin)
 			pressure := float64(uint16(data[0])<<8 | uint16(data[1]))
-			m.handler.SendMetric(PressName, nil, ts, pressure)
+			if m.calibrate < 1000 {
+				calVal += pressure
+				m.calibrate++
+			} else if m.calibrate == 1000 {
+				offset = calVal / 1000
+				calVal = 0
+				m.calibrate++
+				m.handler.SendLog(ms4525Label, time.Now(), fmt.Sprintf("MS4525 Calibrated: %f", offset))
+			} else {
+				m.handler.SendMetric(PressName, nil, ts, offset-pressure)
+			}
+
 			//m.handler.SendPacket(p, PressName)
 			//-((dp_raw - 0.1f*16383) * (P_max-P_min)/(0.8f*16383) + P_min);
 
@@ -103,6 +128,7 @@ func (m *MS4525) run() {
 		case r := <-m.runChan:
 			m.shouldRun = r
 			if r {
+				m.calibrate = 0
 				log.Println("Air Pressure Sensor Running")
 			} else {
 				log.Println("Air Pressure Sensor Stopped")

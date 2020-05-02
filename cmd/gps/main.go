@@ -10,11 +10,12 @@ import (
 
 func main() {
 
-	_, err := gps.NewGPS(nil, "/dev/ttyAMA0")
+	g, err := gps.NewGPS(nil, "/dev/ttyAMA0")
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	g.Start()
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt)
 	signal.Notify(c, os.Kill)
@@ -22,7 +23,8 @@ func main() {
 	go func() {
 		select {
 		case <-c:
-			os.Exit(1)
+			g.Stop()
+			os.Exit(0)
 		}
 	}()
 

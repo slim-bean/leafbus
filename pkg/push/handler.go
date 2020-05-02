@@ -149,7 +149,8 @@ func (h *Handler) Handle(frame can.Frame) {
 		// shift left here 2 and add 3 from the second byte however that gave me 700+ volts)
 		currVoltage := (uint16(frame.Data[2]) << 1) | (uint16(frame.Data[3]&0b11000000) >> 7)
 		ts := time.Now()
-		h.SendMetric("battery_amps", nil, ts, float64(battCurrent))
+		// Invert the battery current reading because I prefer it this way
+		h.SendMetric("battery_amps", nil, ts, float64(-battCurrent))
 		h.SendMetric("battery_volts", nil, ts, float64(currVoltage))
 	case 0x5BC:
 		//GID
