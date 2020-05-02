@@ -149,44 +149,44 @@ func (h *Handler) Handle(frame can.Frame) {
 
 			//Calcs
 
-			// Target Brake Pedal can1 0x1CB
+			//  Target Brake Pedal can1 0x1CB
 			//brake := (uint16(frame.Data[2]) << 2) | (uint16(frame.Data[3]) >> 6)
 			//h.text.SetText(fmt.Sprintf("Brake Pedal: %v", brake))
 
-			// Steering can1 0x002
+			//  Steering can1 0x002
 			//steering := int16(uint16(frame.Data[1]) << 8 | uint16(frame.Data[0]))
 			//h.text.SetText(fmt.Sprintf("Steering: %v", steering))
 
-			// Throttle pos, motor amps can1 0x180
+			//  Throttle pos, motor amps can1 0x180
 			// throttle max == 800, motoramps always positive
 			//motorAmps := (uint16(frame.Data[2]) << 4) | (uint16(frame.Data[3]) >> 4)
 			//throttle := (uint16(frame.Data[5]) << 2) | (uint16(frame.Data[6]) >> 6)
 			//h.text.SetText(fmt.Sprintf("Gas Pedal: %v\nMotorA: %v", throttle, motorAmps))
 
-			// Vehicle Speed can1 0x280
+			//  Vehicle Speed can1 0x280
 			//speed := float64(uint16(frame.Data[4]) << 8 | uint16(frame.Data[5]))
 			//speed = speed * 0.0062
 			//h.text.SetText(fmt.Sprintf("Speed: %v", speed))
 
-			// friction Brake pressure Pedal can1 0x292
+			//  friction Brake pressure Pedal can1 0x292
 			//brake := frame.Data[6]
 			//h.text.SetText(fmt.Sprintf("Brake: %v", brake))
 
-			// turn signal can1 358
+			//  turn signal can1 358
 			//turnL := frame.Data[2] & 0b00000010 == 0b00000010
 			//turnR := frame.Data[2] & 0b00000100 == 0b00000100
 			//h.text.SetText(fmt.Sprintf("TurnR: %v\nTurnL: %v",turnR, turnL))
 
-			// Climate Control Power can1 510
+			//  Climate Control Power can1 510
 			//ccPower := float64(frame.Data[3] >> 1 & 0b00111111)
 			//ccPower = ccPower * 0.25
 			//h.text.SetText(fmt.Sprintf("Clim P: %v", ccPower))
 
-			// GIDS can1 5B3
+			//  GIDS can1 5B3
 			//gid := uint16(frame.Data[4] & 0b00000001) << 8 | uint16(frame.Data[5])
 			//h.text.SetText(fmt.Sprintf("GID: %v", gid))
 
-			// Odometer can1 5C5
+			//  Odometer can1 5C5
 			//odo := uint32(frame.Data[1]) << 16 | uint32(frame.Data[2]) << 8 | uint32(frame.Data[3])
 			//h.text.SetText(fmt.Sprintf("Odo: %v", odo))
 
@@ -196,10 +196,10 @@ func (h *Handler) Handle(frame can.Frame) {
 			//highBeam := frame.Data[1] & 0b00010000 == 0b00010000
 			//h.text.SetText(fmt.Sprintf("Park: %v\nLow: %v\nHigh: %v", parkL, lowBeam, highBeam))
 
-			// battery voltage can0 1DB
-			currVoltage := float64((uint16(frame.Data[2]) << 2) | (uint16(frame.Data[3]&0b11000000) >> 6))
-			currVoltage = currVoltage * 0.5
-			h.text.SetText(fmt.Sprintf("Battery V: %v", currVoltage))
+			//  battery voltage can0 1DB
+			//currVoltage := float64((uint16(frame.Data[2]) << 2) | (uint16(frame.Data[3]&0b11000000) >> 6))
+			//currVoltage = currVoltage * 0.5
+			//h.text.SetText(fmt.Sprintf("Battery V: %v", currVoltage))
 
 			// Even though the doc says the LSB for current is 0.5 it seems to reflect the actual charger current
 			// more accurately when I don't ignore the last bit

@@ -37,6 +37,18 @@ var (
 			Value: "key",
 		},
 	}
+	turnLabel = labels.Labels{
+		labels.Label{
+			Name:  "job",
+			Value: "turn_signal",
+		},
+	}
+	lightLabel = labels.Labels{
+		labels.Label{
+			Name:  "job",
+			Value: "headlights",
+		},
+	}
 )
 
 type Handler struct {
@@ -44,6 +56,7 @@ type Handler struct {
 	loki         *loki
 	runListeners []model.RunListener
 	running      bool
+	prevLights   uint8 //bit 7:  6:  5:  4:high  3: low  2: park  1: turnR  0: turnL
 }
 
 func (h *Handler) Follow(name string, follower *stream.Follower) {
@@ -68,6 +81,7 @@ func NewHandler(cortexAddress string, lokiAddress string) (*Handler, error) {
 		loki:         l,
 		runListeners: []model.RunListener{},
 		running:      false,
+		prevLights:   0,
 	}
 	return h, nil
 }
@@ -80,13 +94,15 @@ func (h *Handler) RegisterRunListener(rl model.RunListener) {
 func (h *Handler) Handle(frame can.Frame) {
 	canMessages.Inc()
 	switch frame.ID {
-	case 0x55B:
-		//SOC
+
+	case 0x002:
+		// Steering Position
 		if h.metricBufferFull() {
 			return
 		}
-		currCharge := (uint16(frame.Data[0]) << 2) | (uint16(frame.Data[1]) >> 6)
-		h.SendMetric("soc", nil, time.Now(), float64(currCharge)/10)
+		steering := int16(uint16(frame.Data[1])<<8 | uint16(frame.Data[0]))
+		ts := time.Now()
+		h.SendMetric("steering_position", nil, ts, float64(steering))
 	case 0x11A:
 		// Gear and Key/Off/On
 		if h.logBufferFull() {
@@ -115,7 +131,20 @@ func (h *Handler) Handle(frame can.Frame) {
 			h.running = false
 			h.SendLog(keyLabel, time.Now(), "Key Turned Off")
 		}
-
+	case 0x180:
+		//Throttle Position
+		if h.metricBufferFull() {
+			return
+		}
+		throttle := float64((uint16(frame.Data[5]) << 2) | (uint16(frame.Data[6]) >> 6))
+		throttle = (throttle / 800) * 100
+		ts := time.Now()
+		h.SendMetric("throttle_percent", nil, ts, throttle)
+	case 0x1CB:
+		// Target brake position
+		brake := (uint16(frame.Data[2]) << 2) | (uint16(frame.Data[3]) >> 6)
+		ts := time.Now()
+		h.SendMetric("target_brake", nil, ts, float64(brake))
 	case 0x1DA:
 		//Battery Current and Voltage
 		if h.metricBufferFull() {
@@ -145,21 +174,122 @@ func (h *Handler) Handle(frame can.Frame) {
 		} else {
 			battCurrent = int16((uint16(frame.Data[0])<<3)&0b0000011111111111 | uint16(frame.Data[1]>>6))
 		}
-		// The voltage however seems to be more accurate when i do throw away the LSB (the doc would have us
-		// shift left here 2 and add 3 from the second byte however that gave me 700+ volts)
-		currVoltage := (uint16(frame.Data[2]) << 1) | (uint16(frame.Data[3]&0b11000000) >> 7)
+		currVoltage := float64((uint16(frame.Data[2]) << 2) | (uint16(frame.Data[3]&0b11000000) >> 6))
+		currVoltage = currVoltage * 0.5
 		ts := time.Now()
 		// Invert the battery current reading because I prefer it this way
 		h.SendMetric("battery_amps", nil, ts, float64(-battCurrent))
 		h.SendMetric("battery_volts", nil, ts, float64(currVoltage))
-	case 0x5BC:
+	case 0x280:
+		// Speed
+		if h.metricBufferFull() {
+			return
+		}
+		speed := float64(uint16(frame.Data[4])<<8 | uint16(frame.Data[5]))
+		speed = speed * 0.0062
+		ts := time.Now()
+		h.SendMetric("speed_mph", nil, ts, speed)
+
+	case 0x292:
+		// Friction Brake Pressure
+		if h.metricBufferFull() {
+			return
+		}
+		brake := frame.Data[6]
+		ts := time.Now()
+		h.SendMetric("friction_brake_pressure", nil, ts, float64(brake))
+	case 0x358:
+		if h.logBufferFull() {
+			return
+		}
+		// Turn Signal
+		turnL := frame.Data[2]&0b00000010 == 0b00000010
+		if turnL && h.prevLights&0b00000001 != 0b000000001 {
+			ts := time.Now()
+			h.SendLog(turnLabel, ts, "Left Turn Signal Active")
+			h.prevLights |= 0b00000001
+		} else if !turnL && h.prevLights&0b00000001 != 0b00000000 {
+			ts := time.Now()
+			h.SendLog(turnLabel, ts, "Left Turn Signal Inactive")
+			h.prevLights &= 0b11111110
+		}
+		turnR := frame.Data[2]&0b00000100 == 0b00000100
+		if turnR && h.prevLights&0b00000010 != 0b000000010 {
+			ts := time.Now()
+			h.SendLog(turnLabel, ts, "Left Turn Signal Active")
+			h.prevLights |= 0b00000010
+		} else if !turnR && h.prevLights&0b00000010 != 0b00000000 {
+			ts := time.Now()
+			h.SendLog(turnLabel, ts, "Left Turn Signal Inactive")
+			h.prevLights &= 0b11111101
+		}
+	case 0x510:
+		//Climate control power
+		if h.metricBufferFull() {
+			return
+		}
+		ccPower := float64(frame.Data[3] >> 1 & 0b00111111)
+		ccPower = ccPower * 0.25
+		ts := time.Now()
+		h.SendMetric("climate_control_kw", nil, ts, ccPower)
+	case 0x55B:
+		//SOC
+		if h.metricBufferFull() {
+			return
+		}
+		currCharge := (uint16(frame.Data[0]) << 2) | (uint16(frame.Data[1]) >> 6)
+		h.SendMetric("soc", nil, time.Now(), float64(currCharge)/10)
+	case 0x5B3:
 		//GID
 		if h.metricBufferFull() {
 			return
 		}
-		gid := (uint16(frame.Data[0]) << 2) | (uint16(frame.Data[1]) >> 6)
+		gid := uint16(frame.Data[4]&0b00000001)<<8 | uint16(frame.Data[5])
 		ts := time.Now()
-		h.SendMetric("gid", nil, ts, float64(gid))
+		h.SendMetric("gids", nil, ts, float64(gid))
+	case 0x5C5:
+		//Odometer
+		if h.metricBufferFull() {
+			return
+		}
+		odo := uint32(frame.Data[1])<<16 | uint32(frame.Data[2])<<8 | uint32(frame.Data[3])
+		ts := time.Now()
+		h.SendMetric("odometer", nil, ts, float64(odo))
+	case 0x625:
+		// Headlights
+		if h.logBufferFull() {
+			return
+		}
+		parkL := frame.Data[1]&0b01000000 == 0b01000000
+		if parkL && h.prevLights&0b00000100 != 0b000000100 {
+			ts := time.Now()
+			h.SendLog(turnLabel, ts, "Parking Lights On")
+			h.prevLights |= 0b00000100
+		} else if !parkL && h.prevLights&0b00000100 != 0b00000000 {
+			ts := time.Now()
+			h.SendLog(turnLabel, ts, "Parking Lights Off")
+			h.prevLights &= 0b11111011
+		}
+		lowBeam := frame.Data[1]&0b00100000 == 0b00100000
+		if lowBeam && h.prevLights&0b00001000 != 0b000001000 {
+			ts := time.Now()
+			h.SendLog(turnLabel, ts, "Low Beams On")
+			h.prevLights |= 0b00001000
+		} else if !lowBeam && h.prevLights&0b00001000 != 0b00000000 {
+			ts := time.Now()
+			h.SendLog(turnLabel, ts, "Low Beams Off")
+			h.prevLights &= 0b11110111
+		}
+		highBeam := frame.Data[1]&0b00010000 == 0b00010000
+		if highBeam && h.prevLights&0b00010000 != 0b000010000 {
+			ts := time.Now()
+			h.SendLog(turnLabel, ts, "High Beams On")
+			h.prevLights |= 0b00010000
+		} else if !highBeam && h.prevLights&0b00010000 != 0b00000000 {
+			ts := time.Now()
+			h.SendLog(turnLabel, ts, "High Beams Off")
+			h.prevLights &= 0b11101111
+		}
 
 	}
 }
