@@ -40,9 +40,9 @@ func main() {
 	log.Println("Finding interface can1")
 	iface1, err := net.InterfaceByName("can1")
 	if err != nil {
-		log.Fatalf("Could not find network interface %s (%v)", "can0", err)
+		log.Fatalf("Could not find network interface %s (%v)", "can1", err)
 	}
-	log.Println("Opening interface can0")
+	log.Println("Opening interface can1")
 	conn1, err := can.NewReadWriteCloserForInterface(iface1)
 	if err != nil {
 		log.Fatal(err)
@@ -103,18 +103,6 @@ func main() {
 	bus1 := can.NewBus(conn1)
 	bus1.SubscribeFunc(handler.Handle)
 
-	c := make(chan os.Signal)
-	signal.Notify(c, os.Interrupt)
-	signal.Notify(c, os.Kill)
-
-	go func() {
-		select {
-		case <-c:
-			bus0.Disconnect()
-			os.Exit(1)
-		}
-	}()
-
 	log.Println("Starting web server")
 	http.HandleFunc("/stream", strm.Handler)
 	http.HandleFunc("/control", func(writer http.ResponseWriter, request *http.Request) {
@@ -150,10 +138,29 @@ func main() {
 		}
 	}()
 
-	log.Println("Entering publish loop")
-	err = bus0.ConnectAndPublish()
-	if err != nil {
-		log.Println(err)
+	log.Println("Listen on Can Buses")
+	go func() {
+		err = bus0.ConnectAndPublish()
+		if err != nil {
+			log.Println(err)
+		}
+	}()
+	go func() {
+		err = bus1.ConnectAndPublish()
+		if err != nil {
+			log.Println(err)
+		}
+	}()
+
+	log.Println("Wait for sigint or kill")
+	c := make(chan os.Signal)
+	signal.Notify(c, os.Interrupt)
+	signal.Notify(c, os.Kill)
+
+	select {
+	case <-c:
+		bus0.Disconnect()
+		bus1.Disconnect()
 	}
 	log.Println("Exiting")
 }

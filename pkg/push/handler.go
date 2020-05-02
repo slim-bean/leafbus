@@ -263,31 +263,31 @@ func (h *Handler) Handle(frame can.Frame) {
 		parkL := frame.Data[1]&0b01000000 == 0b01000000
 		if parkL && h.prevLights&0b00000100 != 0b000000100 {
 			ts := time.Now()
-			h.SendLog(turnLabel, ts, "Parking Lights On")
+			h.SendLog(lightLabel, ts, "Parking Lights On")
 			h.prevLights |= 0b00000100
 		} else if !parkL && h.prevLights&0b00000100 != 0b00000000 {
 			ts := time.Now()
-			h.SendLog(turnLabel, ts, "Parking Lights Off")
+			h.SendLog(lightLabel, ts, "Parking Lights Off")
 			h.prevLights &= 0b11111011
 		}
 		lowBeam := frame.Data[1]&0b00100000 == 0b00100000
 		if lowBeam && h.prevLights&0b00001000 != 0b000001000 {
 			ts := time.Now()
-			h.SendLog(turnLabel, ts, "Low Beams On")
+			h.SendLog(lightLabel, ts, "Low Beams On")
 			h.prevLights |= 0b00001000
 		} else if !lowBeam && h.prevLights&0b00001000 != 0b00000000 {
 			ts := time.Now()
-			h.SendLog(turnLabel, ts, "Low Beams Off")
+			h.SendLog(lightLabel, ts, "Low Beams Off")
 			h.prevLights &= 0b11110111
 		}
 		highBeam := frame.Data[1]&0b00010000 == 0b00010000
 		if highBeam && h.prevLights&0b00010000 != 0b000010000 {
 			ts := time.Now()
-			h.SendLog(turnLabel, ts, "High Beams On")
+			h.SendLog(lightLabel, ts, "High Beams On")
 			h.prevLights |= 0b00010000
 		} else if !highBeam && h.prevLights&0b00010000 != 0b00000000 {
 			ts := time.Now()
-			h.SendLog(turnLabel, ts, "High Beams Off")
+			h.SendLog(lightLabel, ts, "High Beams Off")
 			h.prevLights &= 0b11101111
 		}
 
