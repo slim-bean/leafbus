@@ -149,6 +149,34 @@ func (h *Handler) Handle(frame can.Frame) {
 
 			//Calcs
 
+			// Brake Pedal can1 0x1CB
+			//brake := (uint16(frame.Data[2]) << 2) | (uint16(frame.Data[3]) >> 6)
+			//h.text.SetText(fmt.Sprintf("Brake Pedal: %v", brake))
+
+			// Steering can1 0x002
+			//steering := int16(uint16(frame.Data[1]) << 8 | uint16(frame.Data[0]))
+			//h.text.SetText(fmt.Sprintf("Steering: %v", steering))
+
+			// Throttle pos, motor amps can1 0x180
+			// throttle max == 800, motoramps always positive
+			//motorAmps := (uint16(frame.Data[2]) << 4) | (uint16(frame.Data[3]) >> 4)
+			//throttle := (uint16(frame.Data[5]) << 2) | (uint16(frame.Data[6]) >> 6)
+			//h.text.SetText(fmt.Sprintf("Gas Pedal: %v\nMotorA: %v", throttle, motorAmps))
+
+			// friction Brake pressure Pedal can1 0x292
+			//brake := frame.Data[6]
+			//h.text.SetText(fmt.Sprintf("Brake: %v", brake))
+
+			// turn signal can1 358
+			//turnL := frame.Data[2] & 0b00000010 == 0b00000010
+			//turnR := frame.Data[2] & 0b00000100 == 0b00000100
+			//h.text.SetText(fmt.Sprintf("TurnR: %v\nTurnL: %v",turnR, turnL))
+
+			// Climate Control Power can1 510
+			ccPower := float64(frame.Data[3] >> 1 & 0b00111111)
+			ccPower = ccPower * 0.25
+			h.text.SetText(fmt.Sprintf("Clim P: %v", ccPower))
+
 			// Even though the doc says the LSB for current is 0.5 it seems to reflect the actual charger current
 			// more accurately when I don't ignore the last bit
 			//var battCurrent int16
