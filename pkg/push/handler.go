@@ -216,11 +216,11 @@ func (h *Handler) Handle(frame can.Frame) {
 		turnR := frame.Data[2]&0b00000100 == 0b00000100
 		if turnR && h.prevLights&0b00000010 != 0b000000010 {
 			ts := time.Now()
-			h.SendLog(turnLabel, ts, "Left Turn Signal Active")
+			h.SendLog(turnLabel, ts, "Right Turn Signal Active")
 			h.prevLights |= 0b00000010
 		} else if !turnR && h.prevLights&0b00000010 != 0b00000000 {
 			ts := time.Now()
-			h.SendLog(turnLabel, ts, "Left Turn Signal Inactive")
+			h.SendLog(turnLabel, ts, "Right Turn Signal Inactive")
 			h.prevLights &= 0b11111101
 		}
 	case 0x510:

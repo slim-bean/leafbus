@@ -41,8 +41,10 @@ func main() {
 	}
 	//start := time.Date(2020, 03, 05, 0, 5, 0, 0, loc)
 	//end := time.Date(2020, 03, 05, 0, 30, 0, 0, loc)
-	start := time.Date(2020, 03, 05, 17, 0, 0, 0, loc)
-	end := time.Date(2020, 03, 05, 17, 38, 0, 0, loc)
+	//start := time.Date(2020, 03, 05, 17, 0, 0, 0, loc)
+	//end := time.Date(2020, 03, 05, 17, 38, 0, 0, loc)
+	start := time.Date(2020, 05, 02, 16, 22, 0, 0, loc)
+	end := time.Date(2020, 05, 02, 16, 52, 0, 0, loc)
 
 	for {
 		//end := time.Now()

@@ -18,10 +18,12 @@ ingester:
         store: inmemory
       replication_factor: 1
 
+querier:
+  query_ingesters_within: 1000000h # always query ingesters
 
 tsdb:
   dir: /srv/cortex-tsdb-ingester
-  ship_interval: 1m
+  ship_interval: 0 #disable shipping
   block_ranges_period: [ 15m ]
   retention_period: 24h
   backend: filesystem
