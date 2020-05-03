@@ -132,13 +132,15 @@ func (h *Handler) Handle(frame can.Frame) {
 			h.SendLog(keyLabel, time.Now(), "Key Turned Off")
 		}
 	case 0x180:
-		//Throttle Position
+		//Throttle Position and Motor Amps
 		if h.metricBufferFull() {
 			return
 		}
+		motorAmps := (uint16(frame.Data[2]) << 4) | (uint16(frame.Data[3]) >> 4)
+		ts := time.Now()
+		h.SendMetric("motor_amps", nil, ts, float64(motorAmps))
 		throttle := float64((uint16(frame.Data[5]) << 2) | (uint16(frame.Data[6]) >> 6))
 		throttle = (throttle / 800) * 100
-		ts := time.Now()
 		h.SendMetric("throttle_percent", nil, ts, throttle)
 	case 0x1CB:
 		// Target brake position
@@ -146,19 +148,19 @@ func (h *Handler) Handle(frame can.Frame) {
 		ts := time.Now()
 		h.SendMetric("target_brake", nil, ts, float64(brake))
 	case 0x1DA:
-		//Battery Current and Voltage
+		//Motor Torque and Speed
 		if h.metricBufferFull() {
 			return
 		}
-		var motorAmps int16
+		var effectiveTorque int16
 		if frame.Data[2]&0b00000100 == 0b00000100 {
-			motorAmps = int16(((uint16(frame.Data[2]&0b00000111) << 8) | 0b1111100000000000) | uint16(frame.Data[3]))
+			effectiveTorque = int16(((uint16(frame.Data[2]&0b00000111) << 8) | 0b1111100000000000) | uint16(frame.Data[3]))
 		} else {
-			motorAmps = int16(((uint16(frame.Data[2]&0b00000111) << 8) & 0b0000011111111111) | uint16(frame.Data[3]))
+			effectiveTorque = int16(((uint16(frame.Data[2]&0b00000111) << 8) & 0b0000011111111111) | uint16(frame.Data[3]))
 		}
 		motorSpeed := int16(uint16(frame.Data[4])<<8 | uint16(frame.Data[5]))
 		ts := time.Now()
-		h.SendMetric("motor_amps", nil, ts, float64(motorAmps))
+		h.SendMetric("effective_torque", nil, ts, float64(effectiveTorque))
 		h.SendMetric("motor_rpm", nil, ts, float64(motorSpeed))
 
 	case 0x1DB:
@@ -206,21 +208,21 @@ func (h *Handler) Handle(frame can.Frame) {
 		turnL := frame.Data[2]&0b00000010 == 0b00000010
 		if turnL && h.prevLights&0b00000001 != 0b000000001 {
 			ts := time.Now()
-			h.SendLog(turnLabel, ts, "Left Turn Signal Active")
+			h.SendLog(turnLabel, ts, "Left Turn Signal On")
 			h.prevLights |= 0b00000001
 		} else if !turnL && h.prevLights&0b00000001 != 0b00000000 {
 			ts := time.Now()
-			h.SendLog(turnLabel, ts, "Left Turn Signal Inactive")
+			h.SendLog(turnLabel, ts, "Left Turn Signal Off")
 			h.prevLights &= 0b11111110
 		}
 		turnR := frame.Data[2]&0b00000100 == 0b00000100
 		if turnR && h.prevLights&0b00000010 != 0b000000010 {
 			ts := time.Now()
-			h.SendLog(turnLabel, ts, "Right Turn Signal Active")
+			h.SendLog(turnLabel, ts, "Right Turn Signal On")
 			h.prevLights |= 0b00000010
 		} else if !turnR && h.prevLights&0b00000010 != 0b00000000 {
 			ts := time.Now()
-			h.SendLog(turnLabel, ts, "Right Turn Signal Inactive")
+			h.SendLog(turnLabel, ts, "Right Turn Signal Off")
 			h.prevLights &= 0b11111101
 		}
 	case 0x510:
