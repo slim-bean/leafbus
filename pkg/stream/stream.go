@@ -1,10 +1,9 @@
 package stream
 
 import (
-	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"log"
-	"math"
 	"net/http"
 	"strconv"
 	"sync"
@@ -16,7 +15,7 @@ var (
 			return &Data{
 				Timestamp: 0,
 				Val:       0,
-				bytes:     []byte{'s', 'n', 'p', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+				//bytes:     []byte{'s', 'n', 'p', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 			}
 		},
 	}
@@ -37,20 +36,26 @@ func GetData() *Data {
 }
 
 type Data struct {
-	Timestamp int64
-	Val       float64
-	bytes     []byte
+	Name      string  `json:"name"`
+	Timestamp int64   `json:"ts"`
+	Val       float64 `json:"val"`
+	//bytes     []byte
 }
 
 func (d *Data) String() string {
-	return fmt.Sprintf("%v %v\n", d.Timestamp, d.Val)
+	return fmt.Sprintf("%v %v %v\n", d.Name, d.Timestamp, d.Val)
 }
 
-func (d *Data) Bytes() []byte {
-	binary.BigEndian.PutUint64(d.bytes[3:11], math.Float64bits(float64(d.Timestamp)))
-	binary.BigEndian.PutUint64(d.bytes[11:], math.Float64bits(d.Val))
-	return d.bytes
-}
+//func (d *Data) Bytes() []byte {
+//	//binary.BigEndian.PutUint64(d.bytes[3:11], math.Float64bits(float64(d.Timestamp)))
+//	//binary.BigEndian.PutUint64(d.bytes[11:], math.Float64bits(d.Val))
+//	b, err := json.Marshal(d)
+//	if err != nil {
+//		log.Println("Failed to marshal livestream data:", err)
+//		return []byte{}
+//	}
+//	return b
+//}
 
 type Streamer struct {
 	handler FollowStream
@@ -100,7 +105,8 @@ func (s *Streamer) Handler(w http.ResponseWriter, r *http.Request) {
 		rate = rt
 	}
 
-	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("Content-Type", "application/json")
+	enc := json.NewEncoder(w)
 	f := &Follower{
 		Pub:  make(chan *Data, 1),
 		Rate: rate,
@@ -114,7 +120,10 @@ func (s *Streamer) Handler(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case d := <-f.Pub:
-			w.Write(d.Bytes())
+			err := enc.Encode(d)
+			if err != nil {
+				log.Println("Failed to marshal data object to json stream:", err)
+			}
 			flusher.Flush()
 			reuseData(d)
 		case <-r.Context().Done():

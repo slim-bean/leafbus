@@ -173,6 +173,7 @@ func (c *cortex) run() {
 						}
 					}
 					d := stream.GetData()
+					d.Name = p.Labels.Get(name)
 					d.Timestamp = p.Sample.TimestampMs
 					d.Val = p.Sample.Value
 					f.Pub <- d

@@ -1,0 +1,36 @@
+auth_enabled: false
+
+server:
+  http_listen_port: 8002
+  grpc_listen_port: 9002
+
+ingester:
+  max_transfer_retries: 0
+
+  lifecycler:
+    # We want to start immediately.
+    join_after: 0
+    final_sleep: 0s
+    num_tokens: 512
+    address: 127.0.0.1
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
+
+
+tsdb:
+  dir: /home/ed/leaf/cortex/cortex-tsdb-ingester
+  ship_interval: 1m
+  block_ranges_period: [ 2h ]
+  retention_period: 24h
+  backend: filesystem
+
+  bucket_store:
+    sync_dir: /home/ed/leaf/cortex/cortex-tsdb-querier
+
+  filesystem:
+    dir: /home/ed/leaf/cortex/cortex-tsdb
+
+storage:
+  engine: tsdb
