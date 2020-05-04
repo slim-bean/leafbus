@@ -89,7 +89,7 @@ func main() {
 			return
 		}
 		streams := decoded.Data.Result.(loghttp.Streams)
-		log.Println("# Streams:", len(streams))
+		//log.Println("# Streams:", len(streams))
 		for i, stream := range streams {
 			for j, entry := range stream.Entries {
 				if !entry.Timestamp.After(lastSent) {
