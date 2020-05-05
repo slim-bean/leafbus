@@ -23,11 +23,12 @@ type imageServer struct {
 func NewImageServer(s *synchronizer) *imageServer {
 	return &imageServer{
 		sc: s,
-		c:  make(chan *loghttp.Entry, 20),
+		c:  make(chan *loghttp.Entry, 30),
 	}
 }
 
 func (s *imageServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	log.Println("New Image Request")
 	err := r.ParseForm()
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -51,7 +52,8 @@ func (s *imageServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		s.sc.removeSyncChannel(start.UnixNano()^end.UnixNano(), syncChan)
 	}()
-	go s.imageLoader(start, end)
+	done := make(chan struct{})
+	go s.imageLoader(done, start, end)
 
 	m := multipart.NewWriter(w)
 	defer m.Close()
@@ -115,68 +117,76 @@ func (s *imageServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
+	done <- struct{}{}
+	log.Println("Exiting HTTP Image Request")
 }
 
-func (s *imageServer) imageLoader(start, end time.Time) {
+func (s *imageServer) imageLoader(done chan struct{}, start, end time.Time) {
 	lastSent := time.Unix(0, 0)
-
+	ticker := time.NewTicker(10 * time.Millisecond)
 	for {
-
-		u := url.URL{
-			Scheme: "http",
-			Host:   "localhost:8003",
-			Path:   "loki/api/v1/query_range",
-			RawQuery: fmt.Sprintf("start=%d&end=%d&direction=FORWARD", start.UnixNano(), end.UnixNano()) +
-				"&query=" + url.QueryEscape(fmt.Sprintf("{job=\"camera\"}")) +
-				"&limit=20",
-		}
-		fmt.Println("Query:", u.String())
-
-		req, err := http.NewRequest("GET", u.String(), nil)
-		if err != nil {
-			log.Println("Error building request:", err)
+		select {
+		case <-done:
+			log.Println("Shutting down image loader thread")
 			return
-		}
-
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			log.Println("Error making request:", err)
-			return
-		}
-		defer func() {
-			if err := resp.Body.Close(); err != nil {
-				log.Println("error closing body", err)
+		case <-ticker.C:
+			if len(s.c) > 10 {
+				continue
 			}
-		}()
+			u := url.URL{
+				Scheme: "http",
+				Host:   "localhost:8003",
+				Path:   "loki/api/v1/query_range",
+				RawQuery: fmt.Sprintf("start=%d&end=%d&direction=FORWARD", start.UnixNano(), end.UnixNano()) +
+					"&query=" + url.QueryEscape(fmt.Sprintf("{job=\"camera\"}")) +
+					"&limit=20",
+			}
+			fmt.Println("Query:", u.String())
 
-		if resp.StatusCode/100 != 2 {
-			buf, _ := ioutil.ReadAll(resp.Body)
-			log.Printf("error response from imageServer: %s (%v)", string(buf), err)
-			return
-		}
-		var decoded loghttp.QueryResponse
-		err = json.NewDecoder(resp.Body).Decode(&decoded)
-		if err != nil {
-			log.Println("Error decoding json:", err)
-			return
-		}
-		streams := decoded.Data.Result.(loghttp.Streams)
-		//log.Println("# Streams:", len(streams))
-		for i, stream := range streams {
-			for j, entry := range stream.Entries {
-				if !entry.Timestamp.After(lastSent) {
-					log.Println("ignoring old entry")
-					continue
+			req, err := http.NewRequest("GET", u.String(), nil)
+			if err != nil {
+				log.Println("Error building request:", err)
+				return
+			}
+
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				log.Println("Error making request:", err)
+				return
+			}
+			defer func() {
+				if err := resp.Body.Close(); err != nil {
+					log.Println("error closing body", err)
 				}
-				//log.Println("Pushing image to queue with time:", entry.Timestamp)
+			}()
 
-				s.c <- &streams[i].Entries[j]
-				lastSent = entry.Timestamp
-				start = entry.Timestamp
+			if resp.StatusCode/100 != 2 {
+				buf, _ := ioutil.ReadAll(resp.Body)
+				log.Printf("error response from imageServer: %s (%v)", string(buf), err)
+				return
 			}
-		}
-		for len(s.c) > 10 {
-			time.Sleep(10 * time.Millisecond)
+			var decoded loghttp.QueryResponse
+			err = json.NewDecoder(resp.Body).Decode(&decoded)
+			if err != nil {
+				log.Println("Error decoding json:", err)
+				return
+			}
+			streams := decoded.Data.Result.(loghttp.Streams)
+			//log.Println("# Streams:", len(streams))
+			for i, stream := range streams {
+				for j, entry := range stream.Entries {
+					if !entry.Timestamp.After(lastSent) {
+						log.Println("ignoring old entry")
+						continue
+					}
+					//log.Println("Pushing image to queue with time:", entry.Timestamp)
+
+					s.c <- &streams[i].Entries[j]
+					lastSent = entry.Timestamp
+					start = entry.Timestamp
+				}
+			}
+
 		}
 	}
 }

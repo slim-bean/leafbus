@@ -12,6 +12,7 @@ type synchronizer struct {
 	controlChanel chan int
 	syncChannels  map[int64][]chan *time.Time
 	syncMtx       sync.Mutex
+	done          chan struct{}
 }
 
 func NewSynchroinzer(controlChanel chan int) *synchronizer {
@@ -19,6 +20,7 @@ func NewSynchroinzer(controlChanel chan int) *synchronizer {
 		controlChanel: controlChanel,
 		syncChannels:  map[int64][]chan *time.Time{},
 		syncMtx:       sync.Mutex{},
+		done:          make(chan struct{}),
 	}
 }
 
@@ -68,13 +70,39 @@ func (s *synchronizer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(err.Error()))
 		return
 	}
-	if strings.ToLower(run) == "true" {
+	if strings.ToLower(run) == "start" {
 		log.Println("Starting Services from HTTP Request")
-		s.run(start, end, 5)
+		go s.run(start, end, 5)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if strings.ToLower(run) == "pause" {
+		log.Println("Starting Services from HTTP Request")
+		go s.run(start, end, 5)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if strings.ToLower(run) == "reset" {
+		log.Println("Starting Services from HTTP Request")
+		s.done <- struct{}{}
+		s.reset(start, end)
 		w.WriteHeader(http.StatusOK)
 		return
 	}
 	w.WriteHeader(http.StatusBadRequest)
+}
+
+func (s *synchronizer) reset(start, end time.Time) {
+	s.syncMtx.Lock()
+	defer s.syncMtx.Unlock()
+	id := start.UnixNano() ^ end.UnixNano()
+	if _, ok := s.syncChannels[id]; ok {
+		for _, c := range s.syncChannels[id] {
+			close(c)
+		}
+		s.syncChannels[id] = s.syncChannels[id][:0]
+		delete(s.syncChannels, id)
+	}
 }
 
 func (s *synchronizer) run(start, end time.Time, scale int64) {
@@ -83,8 +111,10 @@ func (s *synchronizer) run(start, end time.Time, scale int64) {
 	ticker := time.NewTicker(1 * time.Millisecond)
 	for {
 		select {
+		case <-s.done:
+			log.Println("Sync runner requested to shutdown, shutting down")
+			return
 		case <-ticker.C:
-			time.Sleep(1 * time.Millisecond)
 			now := time.Now()
 			elapsed := now.Sub(lastSent).Milliseconds()
 			// Default 10ms tick for timestamps
