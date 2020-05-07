@@ -19,7 +19,7 @@ ingester:
     final_sleep: 0s
   chunk_idle_period: 15m
   chunk_retain_period: 30s
-  chunk_encoding: snappy
+  chunk_encoding: none
   max_transfer_retries: 0
   chunk_target_size: 1536000 # 1.5MB
   max_chunk_age: 15m
@@ -35,6 +35,7 @@ schema_config:
         period: 168h
 
 storage_config:
+  max_chunk_batch_size: 1
   boltdb_shipper:
     shared_store: filesystem
     active_index_directory: /var/lib/loki/index

@@ -65,6 +65,7 @@ func (s *synchronizer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	run := r.Form.Get("run")
 	start, end, err := bounds(r)
+	log.Println("Sync Start:", start, " End:", end)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(err.Error()))
@@ -138,7 +139,7 @@ func (s *synchronizer) run(start, end time.Time, scale int64) {
 			next = next.Add(10 * time.Millisecond)
 			if next.After(end) {
 				log.Println("Reached end timestamp")
-				break
+				return
 			}
 		}
 	}

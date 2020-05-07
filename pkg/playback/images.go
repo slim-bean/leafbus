@@ -27,8 +27,18 @@ func NewImageServer(s *synchronizer) *imageServer {
 	}
 }
 
+func setupResponse(w *http.ResponseWriter, req *http.Request) {
+	(*w).Header().Set("Access-Control-Allow-Origin", "*")
+	(*w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+	(*w).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+}
+
 func (s *imageServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Println("New Image Request")
+	setupResponse(&w, r)
+	if (*r).Method == "OPTIONS" {
+		return
+	}
 	err := r.ParseForm()
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -99,7 +109,7 @@ func (s *imageServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.Set("Content-Type", "image/jpeg")
 			h.Set("Content-Length", fmt.Sprint(len(bytes)))
 			h.Set("X-StartTime", st)
-			h.Set("X-TimeStamp", fmt.Sprint(time.Now().Unix()))
+			h.Set("X-TimeStamp", fmt.Sprint(currentTimestamp.UnixNano()/1e6))
 			mw, err := m.CreatePart(h)
 			if err != nil {
 				break

@@ -15,7 +15,7 @@ services:
       - "/srv/cortex-tsdb-ingester:/srv/cortex-tsdb-ingester"
       - "/srv/cortex-tsdb:/srv/cortex-tsdb"
   loki:
-    image: grafana/loki:master-989fb10
+    image: slimbean/loki:latest
     environment:
       - GODEBUG=madvdontneed=1
     command: "-config.file=/etc/loki/loki-config.yaml -log.level=info"
@@ -27,7 +27,7 @@ services:
       - 8003:8003
       - 9003:9003
   grafana:
-    image: grafana/grafana:7.0.0-beta1
+    image: slimbean/grafana:interval
     user: "1000"
     restart: always
     environment:

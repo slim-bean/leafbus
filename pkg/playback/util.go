@@ -45,5 +45,5 @@ func parseTimestamp(value string) (time.Time, error) {
 	if len(value) <= 10 {
 		return time.Unix(nanos, 0), nil
 	}
-	return time.Unix(0, nanos), nil
+	return time.Unix(0, nanos*1e6), nil
 }

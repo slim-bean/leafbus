@@ -45,3 +45,9 @@ reader:
 	upx cmd/reader/reader
 send-reader: reader
 	scp cmd/reader/reader pi@leaf.edjusted.com:
+
+playback:
+	env GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=0 go build -ldflags '-extldflags "-static"' -o cmd/playback/playback ./cmd/playback/main.go
+	upx cmd/playback/playback
+send-playback: playback
+	scp cmd/playback/playback pi@leaf.edjusted.com:

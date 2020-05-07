@@ -57,6 +57,9 @@ type Handler struct {
 	runListeners []model.RunListener
 	running      bool
 	prevLights   uint8 //bit 7:  6:  5:  4:high  3: low  2: park  1: turnR  0: turnL
+	lastGid      uint16
+	tripStartGid uint16
+	lastBatteryV float64
 }
 
 func (h *Handler) Follow(name string, follower *stream.Follower) {
@@ -123,6 +126,7 @@ func (h *Handler) Handle(frame can.Frame) {
 			}
 			h.running = true
 			h.SendLog(keyLabel, time.Now(), "Key Turned On")
+			h.tripStartGid = h.lastGid
 		} else if !keyOn && h.running {
 			// Key is off, currently running, stop
 			for _, l := range h.runListeners {
@@ -182,6 +186,7 @@ func (h *Handler) Handle(frame can.Frame) {
 		// Invert the battery current reading because I prefer it this way
 		h.SendMetric("battery_amps", nil, ts, float64(-battCurrent))
 		h.SendMetric("battery_volts", nil, ts, float64(currVoltage))
+		h.lastBatteryV = currVoltage
 	case 0x280:
 		// Speed
 		if h.metricBufferFull() {
@@ -234,6 +239,7 @@ func (h *Handler) Handle(frame can.Frame) {
 		ccPower = ccPower * 0.25
 		ts := time.Now()
 		h.SendMetric("climate_control_kw", nil, ts, ccPower)
+		h.SendMetric("climate_control_amps", nil, ts, ccPower/h.lastBatteryV)
 	case 0x55B:
 		//SOC
 		if h.metricBufferFull() {
@@ -247,8 +253,15 @@ func (h *Handler) Handle(frame can.Frame) {
 			return
 		}
 		gid := uint16(frame.Data[4]&0b00000001)<<8 | uint16(frame.Data[5])
+		// Sometimes we get a bogus gid value of 511 so just send the last value
+		if gid == 511 {
+			gid = h.lastGid
+		} else {
+			h.lastGid = gid
+		}
 		ts := time.Now()
 		h.SendMetric("gids", nil, ts, float64(gid))
+		h.SendMetric("trip_gids", nil, ts, float64(h.tripStartGid-gid))
 	case 0x5C5:
 		//Odometer
 		if h.metricBufferFull() {
