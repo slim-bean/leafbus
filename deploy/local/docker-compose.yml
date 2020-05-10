@@ -11,7 +11,7 @@ services:
       - "./cortex-config.yaml:/etc/cortex/config.yaml"
 
   loki:
-    image: grafana/loki:master-577d8eb
+    image: slimbean/loki:latest
     command: "-config.file=/etc/loki/loki-config.yaml -log.level=debug"
     volumes:
       - "/home/ed/leaf/loki:/var/lib/loki"

@@ -172,8 +172,6 @@ func (h *Handler) Handle(frame can.Frame) {
 		if h.metricBufferFull() {
 			return
 		}
-		// Even though the doc says the LSB for current is 0.5 it seems to reflect the actual charger current
-		// more accurately when I don't ignore the last bit
 		var battCurrent int16
 		if frame.Data[0]&0b10000000 == 0b10000000 {
 			battCurrent = int16((uint16(frame.Data[0]) << 3) | 0b1111100000000000 | uint16(frame.Data[1]>>6))

@@ -63,6 +63,10 @@ func (s *imageServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.sc.removeSyncChannel(start.UnixNano()^end.UnixNano(), syncChan)
 	}()
 	done := make(chan struct{})
+	defer func() {
+		done <- struct{}{}
+		log.Println("Exiting HTTP Image Request")
+	}()
 	go s.imageLoader(done, start, end)
 
 	m := multipart.NewWriter(w)
@@ -108,15 +112,18 @@ func (s *imageServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			h.Set("Content-Type", "image/jpeg")
 			h.Set("Content-Length", fmt.Sprint(len(bytes)))
+			if st == "" {
+				st = fmt.Sprint(currentTimestamp.Unix())
+			}
 			h.Set("X-StartTime", st)
-			h.Set("X-TimeStamp", fmt.Sprint(currentTimestamp.UnixNano()/1e6))
+			h.Set("X-TimeStamp", fmt.Sprint(time.Now().Unix()))
 			mw, err := m.CreatePart(h)
 			if err != nil {
 				break
 			}
 			_, err = mw.Write(bytes)
 			if err != nil {
-				break
+				return
 			}
 			if flusher, ok := mw.(http.Flusher); ok {
 				flusher.Flush()
@@ -127,8 +134,7 @@ func (s *imageServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	done <- struct{}{}
-	log.Println("Exiting HTTP Image Request")
+
 }
 
 func (s *imageServer) imageLoader(done chan struct{}, start, end time.Time) {

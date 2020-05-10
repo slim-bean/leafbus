@@ -68,6 +68,10 @@ func (s *metricServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}()
 	c := make(chan *stream.Data, 500)
 	done := make(chan struct{})
+	defer func() {
+		done <- struct{}{}
+		log.Println("Exiting HTTP Metrics Request")
+	}()
 	go s.metricLoader(c, done, start, end, name, rate)
 
 	w.Header().Set("Content-Type", "application/json")
@@ -109,6 +113,7 @@ func (s *metricServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			err := enc.Encode(currEntry)
 			if err != nil {
 				log.Println("Failed to marshal data object to json stream:", err)
+				return
 			}
 			flusher.Flush()
 
@@ -117,9 +122,6 @@ func (s *metricServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	done <- struct{}{}
-	log.Println("Exiting HTTP Metrics Request")
-
 }
 
 func (s *metricServer) metricLoader(c chan *stream.Data, done chan struct{}, start, end time.Time, queryString string, rate time.Duration) {

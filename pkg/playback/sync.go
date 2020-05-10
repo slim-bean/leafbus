@@ -12,6 +12,7 @@ type synchronizer struct {
 	controlChanel chan int
 	syncChannels  map[int64][]chan *time.Time
 	syncMtx       sync.Mutex
+	activeSync    int64
 	done          chan struct{}
 }
 
@@ -130,7 +131,7 @@ func (s *synchronizer) run(start, end time.Time, scale int64) {
 					if len(c) < 10 {
 						c <- &next
 					} else {
-						log.Println("A sender is not keeping up, TS dropped")
+						//log.Println("A sender is not keeping up, TS dropped")
 					}
 				}
 			}

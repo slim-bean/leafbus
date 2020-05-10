@@ -27,7 +27,7 @@ tsdb:
   dir: /srv/cortex-tsdb-ingester
   ship_interval: 0 #disable shipping
   block_ranges_period: [ 15m ]
-  retention_period: 504h #21days
+  retention_period: 336h #14days
   backend: filesystem
 
   bucket_store:
