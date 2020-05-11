@@ -116,7 +116,7 @@ func (s *imageServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				st = fmt.Sprint(currentTimestamp.Unix())
 			}
 			h.Set("X-StartTime", st)
-			h.Set("X-TimeStamp", fmt.Sprint(time.Now().Unix()))
+			h.Set("X-TimeStamp", fmt.Sprint(currentTimestamp.UnixNano()/1e6))
 			mw, err := m.CreatePart(h)
 			if err != nil {
 				break
@@ -157,7 +157,8 @@ func (s *imageServer) imageLoader(done chan struct{}, start, end time.Time) {
 					"&query=" + url.QueryEscape(fmt.Sprintf("{job=\"camera\"}")) +
 					"&limit=20",
 			}
-			fmt.Println("Query:", u.String())
+			//FIXME stop querying if we are after the end
+			log.Println("Query:", u.String())
 
 			req, err := http.NewRequest("GET", u.String(), nil)
 			if err != nil {
