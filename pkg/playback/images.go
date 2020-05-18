@@ -17,13 +17,11 @@ import (
 
 type imageServer struct {
 	sc *synchronizer
-	c  chan *loghttp.Entry
 }
 
 func NewImageServer(s *synchronizer) *imageServer {
 	return &imageServer{
 		sc: s,
-		c:  make(chan *loghttp.Entry, 30),
 	}
 }
 
@@ -62,12 +60,13 @@ func (s *imageServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		s.sc.removeSyncChannel(start.UnixNano()^end.UnixNano(), syncChan)
 	}()
+	c := make(chan *loghttp.Entry, 100)
 	done := make(chan struct{})
 	defer func() {
 		done <- struct{}{}
 		log.Println("Exiting HTTP Image Request")
 	}()
-	go s.imageLoader(done, start, end)
+	go s.imageLoader(c, done, start, end)
 
 	m := multipart.NewWriter(w)
 	defer m.Close()
@@ -84,7 +83,7 @@ func (s *imageServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			time.Sleep(1 * time.Millisecond)
 			// Dequeue next entry
 			if currEntry == nil {
-				b, ok := <-s.c
+				b, ok := <-c
 				if !ok {
 					log.Println("Sender out of data, channel closed")
 					break
@@ -137,16 +136,20 @@ func (s *imageServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func (s *imageServer) imageLoader(done chan struct{}, start, end time.Time) {
+func (s *imageServer) imageLoader(c chan *loghttp.Entry, done chan struct{}, start, end time.Time) {
 	lastSent := time.Unix(0, 0)
 	ticker := time.NewTicker(10 * time.Millisecond)
+	finished := false
 	for {
 		select {
 		case <-done:
 			log.Println("Shutting down image loader thread")
 			return
 		case <-ticker.C:
-			if len(s.c) > 10 {
+			if finished {
+				continue
+			}
+			if len(c) > 10 {
 				continue
 			}
 			u := url.URL{
@@ -163,13 +166,15 @@ func (s *imageServer) imageLoader(done chan struct{}, start, end time.Time) {
 			req, err := http.NewRequest("GET", u.String(), nil)
 			if err != nil {
 				log.Println("Error building request:", err)
-				return
+				finished = true
+				continue
 			}
 
 			resp, err := http.DefaultClient.Do(req)
 			if err != nil {
 				log.Println("Error making request:", err)
-				return
+				finished = true
+				continue
 			}
 			defer func() {
 				if err := resp.Body.Close(); err != nil {
@@ -180,15 +185,28 @@ func (s *imageServer) imageLoader(done chan struct{}, start, end time.Time) {
 			if resp.StatusCode/100 != 2 {
 				buf, _ := ioutil.ReadAll(resp.Body)
 				log.Printf("error response from imageServer: %s (%v)", string(buf), err)
-				return
+				finished = true
+				continue
 			}
 			var decoded loghttp.QueryResponse
 			err = json.NewDecoder(resp.Body).Decode(&decoded)
 			if err != nil {
 				log.Println("Error decoding json:", err)
-				return
+				finished = true
+				continue
 			}
 			streams := decoded.Data.Result.(loghttp.Streams)
+
+			//This helps us cancel by moving forward until we are after end time
+			if len(streams) == 0 {
+				start = start.Add(1 * time.Minute)
+				if start.After(end) {
+					log.Println("Finished reading images")
+					finished = true
+				}
+				continue
+			}
+
 			//log.Println("# Streams:", len(streams))
 			for i, stream := range streams {
 				for j, entry := range stream.Entries {
@@ -198,9 +216,9 @@ func (s *imageServer) imageLoader(done chan struct{}, start, end time.Time) {
 					}
 					//log.Println("Pushing image to queue with time:", entry.Timestamp)
 
-					s.c <- &streams[i].Entries[j]
+					c <- &streams[i].Entries[j]
 					lastSent = entry.Timestamp
-					start = entry.Timestamp
+					start = entry.Timestamp.Add(1 * time.Nanosecond)
 				}
 			}
 

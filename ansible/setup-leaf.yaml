@@ -15,10 +15,6 @@
         mode: '0755'
       tags:
         - grafana
-#    - name: Load AWS vars
-#      include_vars: aws_vars.yaml
-#      tags:
-#        - cortex-config
     - name: Create agent wal dir
       file:
         path: /srv/agent-wal/

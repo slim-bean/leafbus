@@ -2,7 +2,7 @@ version: "3.7"
 
 services:
   cortex:
-    image: slimbean/cortex:latest-amd
+    image: slimbean/cortex-amd:latest
     command: "-config.file=/etc/cortex/config.yaml -server.http-listen-port=8002 -querier.query-ingesters-within=-10s"
     ports:
       - 8002:8002
@@ -11,7 +11,7 @@ services:
       - "./cortex-config.yaml:/etc/cortex/config.yaml"
 
   loki:
-    image: slimbean/loki:latest
+    image: slimbean/loki-amd:latest
     command: "-config.file=/etc/loki/loki-config.yaml -log.level=debug"
     volumes:
       - "/home/ed/leaf/loki:/var/lib/loki"
@@ -41,7 +41,7 @@ services:
 #    ports:
 #      - 10902:10902
   grafana:
-    image: grafana/grafana:6.7.3
+    image: slimbean/grafana-amd:latest
     ports:
       - "3000:3000"
     network_mode: "host"

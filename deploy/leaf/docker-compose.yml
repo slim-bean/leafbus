@@ -2,7 +2,7 @@ version: "3.7"
 
 services:
   cortex:
-    image: slimbean/cortex:latest
+    image: slimbean/cortex-arm:latest
     environment:
       - GODEBUG=madvdontneed=1
     command: "-config.file=/etc/cortex/cortex-config.yaml"
@@ -15,7 +15,7 @@ services:
       - "/srv/cortex-tsdb-ingester:/srv/cortex-tsdb-ingester"
       - "/srv/cortex-tsdb:/srv/cortex-tsdb"
   loki:
-    image: slimbean/loki:latest
+    image: slimbean/loki-arm:latest
     environment:
       - GODEBUG=madvdontneed=1
     command: "-config.file=/etc/loki/loki-config.yaml -log.level=info"
@@ -27,7 +27,7 @@ services:
       - 8003:8003
       - 9003:9003
   grafana:
-    image: slimbean/grafana:interval
+    image: slimbean/grafana-arm:latest
     user: "1000"
     restart: always
     environment:
@@ -37,17 +37,17 @@ services:
       - 3000:3000
     volumes:
       - "/home/pi/grafana:/var/lib/grafana"
-#  agent:
-#    image: slimbean/agent:latest
-#    environment:
-#      - GODEBUG=madvdontneed=1
-#    network_mode: "host"
-#    restart: always
-#    ports:
-#      - 8004:8004
-#    volumes:
-#      - "/home/pi/agent-config.yaml:/etc/agent/agent.yaml"
-#      - "/srv/agent-wal:/etc/agent/data"
+  agent:
+    image: slimbean/agent-arm:latest
+    environment:
+      - GODEBUG=madvdontneed=1
+    network_mode: "host"
+    restart: always
+    ports:
+      - 8004:8004
+    volumes:
+      - "/home/pi/agent-config.yaml:/etc/agent/agent.yaml"
+      - "/srv/agent-wal:/etc/agent/data"
 
 
 

@@ -58,6 +58,10 @@ func (s *synchronizer) removeSyncChannel(id int64, c chan *time.Time) {
 }
 
 func (s *synchronizer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	setupResponse(&w, r)
+	if (*r).Method == "OPTIONS" {
+		return
+	}
 	err := r.ParseForm()
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -66,7 +70,7 @@ func (s *synchronizer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	run := r.Form.Get("run")
 	start, end, err := bounds(r)
-	log.Println("Sync Start:", start, " End:", end)
+	//log.Println("Sync Start:", start, " End:", end)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(err.Error()))
@@ -74,20 +78,14 @@ func (s *synchronizer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.ToLower(run) == "start" {
 		log.Println("Starting Services from HTTP Request")
-		go s.run(start, end, 5)
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-	if strings.ToLower(run) == "pause" {
-		log.Println("Starting Services from HTTP Request")
-		go s.run(start, end, 5)
+		go s.run(start, end, 2)
 		w.WriteHeader(http.StatusOK)
 		return
 	}
 	if strings.ToLower(run) == "reset" {
-		log.Println("Starting Services from HTTP Request")
+		log.Println("Resetting")
+		s.resetAll()
 		s.done <- struct{}{}
-		s.reset(start, end)
 		w.WriteHeader(http.StatusOK)
 		return
 	}
@@ -105,6 +103,25 @@ func (s *synchronizer) reset(start, end time.Time) {
 		s.syncChannels[id] = s.syncChannels[id][:0]
 		delete(s.syncChannels, id)
 	}
+}
+
+func (s *synchronizer) resetAll() {
+	s.syncMtx.Lock()
+	defer s.syncMtx.Unlock()
+	toDelete := []int64{}
+	for key := range s.syncChannels {
+		if _, ok := s.syncChannels[key]; ok {
+			for _, c := range s.syncChannels[key] {
+				close(c)
+			}
+			s.syncChannels[key] = s.syncChannels[key][:0]
+			toDelete = append(toDelete, key)
+		}
+	}
+	for _, key := range toDelete {
+		delete(s.syncChannels, key)
+	}
+
 }
 
 func (s *synchronizer) run(start, end time.Time, scale int64) {

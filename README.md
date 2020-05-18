@@ -1,128 +1,157 @@
 
 
-Docker 19.03.5
+# leafbus
 
-Still needed a newer builder
+This is an app I built to capture CAN bus data and some other sensor data on my Nissan Leaf to help better understand
+energy usage, give feedback while driving to encourage better driving habits, and help plan my driving routes.
 
+This is very much a work in progress.
+
+
+## Hardware
+
+* Raspberry Pi 3B+ 
+* [PiCan2 Duo](https://copperhilltech.com/pican2-duo-can-bus-board-for-raspberry-pi/)
+* [GPS Sensor](https://www.adafruit.com/product/746)
+* [Air Pressure](https://www.amazon.com/gp/product/B07FN6615W/ref=ppx_yo_dt_b_search_asin_title?ie=UTF8&psc=1) See notes below
+* [Power Supply](http://www.chrobotics.com/shop/hydra) See notes below
+
+### Notes 
+
+**Power** 
+
+I bought the PiCan2 Duo with the built in DC-DC converter hoping to use it to power everything.  I should have known when buying it the specified max output current of 1A wouldn't be enough, and it's not.
+Save a few bucks and by the PiCan2 Duo without the DC-DC converter and get a separate supply.  The Hydra is just something I had laying around and sadly you can't buy them anymore.
+
+I will try to find a recommendation for a PS at some point, anything that can handle an automotive input and deliver a couple amps, even more if you are using a Raspberry Pi 4
+
+**Air Pressure**
+
+I bought this sensor thinking it would be a good way to measure how the air hitting the car affects energy usage, does driving into the wind or away matter much?  Does "drafting" matter, etc.
+
+So far I'm not sure it's worth it.  Also I would just get the ms4525 sensor for less money somewhere else.
+
+## Building Dependencies 
+
+This project needs Loki, Cortex, and the Grafana Cloud Agent all running on the Raspberry Pi, here's how to build them
+
+To cross compile the docker images for Cortex and Loki I use [buildx](https://docs.docker.com/buildx/working-with-buildx/)
+
+As of may 2020 I still have to do this after every reboot to get a builder that will cross compile to the armv7 architecture
+
+```bash
+docker buildx rm builder
+docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+docker buildx create --name builder --driver docker-container --use
+docker buildx inspect --bootstrap
 ```
-docker buildx create --name bld
-docker buildx ls
-docker buildx inspect bld --bootstrap
-docker buildx use bld
+
+### Prebuilt docker images:
+
+slimbean/cortex-amd:latest
+slimbean/agent-arm:latest
+slimbean/loki-arm:latest
+
+### Loki
+
+The Loki project already exports armv7 images which run on Raspbian, feel free to use a recent version.  
+I only have one change which probably won't be in the 1.5.0 release, which allows setting the encoding type to None for the chunks.
+This is something I'm playing around with when storing images (which are already compressed) inside Loki but you don't need to have it.
+Using `snappy` works well too. 
+
+In the root of the Loki project run, modify the push target as necessary:
+
+```bash
+docker buildx build --build-arg "TOUCH_PROTOS=1" --platform linux/amd64,linux/arm/v7 -f cmd/loki/Dockerfile --push -t slimbean/loki .
 ```
 
-https://stackoverflow.com/questions/60080264/docker-cannot-build-multi-platform-images-with-docker-buildx
+This takes a long time on my computer, an hour.... Buildkit is slow but it shouldn't be this slow, this has to be something with Loki.
 
-738  2020-04-24 08:51:50 sudo apt purge --auto-remove qemu-user-static qemu-user-binfmt binfmt-support
-  739  2020-04-24 08:52:45 sudo apt install qemu-user-static
-  740  2020-04-24 08:53:07 sudo systemctl restart docker
-  741  2020-04-24 08:53:12 docker buildx rm raspi
-  742  2020-04-24 08:53:23 docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-  743  2020-04-24 08:53:41 docker buildx create --name builder --driver docker-container --use
-  744  2020-04-24 08:53:50 docker buildx inspect --bootstrap
+### Cortex
 
+Cortex does not build arm images so you'll need build the docker image yourself.
+
+The native dockerfile isn't terribly friendly for this so I have a branch in my fork which helps:
+
+```bash
+git clone https://github.com/slim-bean/cortex
+git checkout -b cortex-arm-docker-only origin/cortex-arm-docker-only
+docker buildx build --platform linux/arm/v7 -t slimbean/cortex:latest -f cmd/cortex/Dockerfile --push .
 ```
- docker buildx build --platform linux/arm/v7 -t slimbean/cortex:latest -f cmd/cortex/Dockerfile --push .
- docker build -t slimbean/cortex-querier:latest -f cmd/cortex/Dockerfile .
+
+Make sure to update that tag repo to your own for pushing.
+
+If you are going to run a local cortex, you will want a different branch of that fork which lets cortex query the store for labels and also fixes an issue in Thanos
+
+```bash
+git checkout -b query-store-labels origin/query-store-labels
+make all
 ```
 
+
+
+### Grafana Cloud Agent
+
+```bash
+docker buildx build --platform linux/arm/v7 -t slimbean/agent:latest -f cmd/agent/Dockerfile --push .
+```
+
+### Grafana
+
+I forked Grafana to hack on the Loki datasource, specifically to be able to send an `interval` to Loki which is required
+when using it to store metrics style data.  I don't think I'm going to open a PR to merge this because it's not a very good solution.
+Please see this [github issue](https://github.com/grafana/loki/issues/1779) for a better discussion about this problem.
+
+I think I'd like to see this solved in LogQL and probably remove "interval" from Loki which is why I don't want to merge this change in Grafana.
+
+Building Grafana to run on the Raspberry Pi is difficult... You'll want to use my fork/branch:
+
+```bash
+git clone https://github.com/slim-bean/grafana
+git checkout -b loki-interval origin/loki-interval
+make deps
+make build-js
+make build-server
+make build-docker-dev
+```
+
+You'll need to hack up the makefile to change the build-docker-dev to push to your dockerhub
+
+
+You'll also want to build a local docker which is not arm, this is easier:
+
+```bash
+make build-docker-full
+```
+
+I also hacked up that target to change the tag, you'll want to change that as well.
+
+### Grafana Datasources and Panels
+
+image-viewer-panel
+streaming-json-datasource
+grafana-trackmap-panel
+
+## Running
+
+### Raspberry Pi
+
+Use official raspbian image, this makes things like the camera and using serial ports and things a lot easier but has one big drawback.
+
+It's a 32bit OS and Cortex using the TSDB blocks store does not like 32bit OS, it will memory map TSDB blocks that are created.  
+You will get out of memory errors if you use the compactor, and you will likely see other out of memory errors if you keep too much data on the Raspberry Pi.
+
+I did at one point have 64bit Ubuntu installed however this made everything else harder so I moved away from it. 
+
+Install Docker, Enable the Camera, Setup PiCan2 Duo
+
+Run ansible playbook
+
+There is a docker-compose file to get all the images running
+```bash
 `export DOCKER_HOST="ssh://pi@leaf.edjusted.com"`
-
-`docker-compose pull leafbus`
-`docker-compose up -d --force-recreate`
-
-
-
-```yaml
-auth_enabled: false
-
-server:
-  http_listen_port: 8002
-  grpc_listen_port: 9002
-
-ingester:
-  max_transfer_retries: 1
-
-  lifecycler:
-    # We want to start immediately.
-    join_after: 0
-    claim_on_rollout: false
-    final_sleep: 0s
-    num_tokens: 512
-    address: 127.0.0.1
-    ring:
-      kvstore:
-        store: inmemory
-      replication_factor: 1
-
-
-tsdb:
-  dir: /srv/cortex-tsdb-ingester
-  ship_interval: 1m
-  block_ranges_period: [ 5m ]
-  retention_period: 72h
-  backend: s3
-
-  bucket_store:
-    sync_dir: /srv/cortex-tsdb-querier
-
-  s3:
-    endpoint:          minio:9000
-    bucket_name:       cortex-tsdb
-    access_key_id:     cortex
-    secret_access_key: supersecret
-    insecure:          true
-
-storage:
-  engine: tsdb
+`docker-compose up -d`
 ```
-
-```yaml
-auth_enabled: false
-
-server:
-  http_listen_port: 8003
-  grpc_listen_port: 9003
-
-ingester:
-  lifecycler:
-    address: 127.0.0.1
-    ring:
-      kvstore:
-        store: inmemory
-      replication_factor: 1
-    final_sleep: 0s
-  chunk_idle_period: 20m  # Set longer than max_chunk_age so that everything gets flushed at 15m
-  chunk_retain_period: 30s
-  max_transfer_retries: 0
-  chunk_target_size: 1048576 # 1MB
-  max_chunk_age: 15m
-
-schema_config:
-  configs:
-  - from: 2018-04-15
-    store: inmemory
-    object_store: filesystem
-    schema: v11
-    index:
-      prefix: index_
-      period: 168h
-
-storage_config:
-  filesystem:
-    directory: /var/lib/loki/chunks
-```
-
-http://cortex:8002/api/prom
-
-
-  - [x] power supply (read input voltage and output current)
-  - [ ] configure low voltage shutoff
-  - [x] experiment with retention period settings on TSDB
-  - [x] fix volume mounts
-  - [x] gomadvdebug on cortex
-  - [ ] scrape metrics and push them into local cortex without running prom
-  - [ ] node-exporter
   
 High level goals:
 

@@ -66,9 +66,10 @@ func (s *metricServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		s.sc.removeSyncChannel(start.UnixNano()^end.UnixNano(), syncChan)
 	}()
-	c := make(chan *stream.Data, 500)
+	c := make(chan *stream.Data, 10000)
 	done := make(chan struct{})
 	defer func() {
+		log.Println("Metrics loader thread exiting")
 		done <- struct{}{}
 		log.Println("Exiting HTTP Metrics Request")
 	}()
@@ -125,6 +126,9 @@ func (s *metricServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *metricServer) metricLoader(c chan *stream.Data, done chan struct{}, start, end time.Time, queryString string, rate time.Duration) {
+	defer func() {
+		log.Println("Loader Thread Returning")
+	}()
 	lastSent := time.Unix(0, 0)
 	client, err := api.NewClient(api.Config{
 		Address: "http://localhost:8002/api/prom",
@@ -135,6 +139,7 @@ func (s *metricServer) metricLoader(c chan *stream.Data, done chan struct{}, sta
 	}
 	v1api := v1.NewAPI(client)
 	ticker := time.NewTicker(10 * time.Millisecond)
+	finished := false
 	for {
 		select {
 		case <-done:
@@ -144,22 +149,26 @@ func (s *metricServer) metricLoader(c chan *stream.Data, done chan struct{}, sta
 			if len(c) > 250 {
 				continue
 			}
+			if finished {
+				continue
+			}
+
 			// ?query=battery_amps&start=1588515010&end=1588516734&step=2
 			adjustedEnd := start.Add(1 * time.Minute)
-			if adjustedEnd.After(end) {
-				log.Println("End of Data")
-				return
-			}
+
 			r := v1.Range{
 				Start: start,
 				End:   adjustedEnd,
 				Step:  rate,
 			}
 			log.Println("Querying:", queryString, "Range:", r)
-			result, warnings, err := v1api.QueryRange(context.Background(), queryString, r)
+			ctx := context.Background()
+			ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			result, warnings, err := v1api.QueryRange(ctx, queryString, r)
+			cancel()
 			if err != nil {
 				log.Printf("Error querying Prometheus: %v\n", err)
-				return
+				continue
 			}
 			if len(warnings) > 0 {
 				log.Printf("Warnings: %v\n", warnings)
@@ -191,7 +200,10 @@ func (s *metricServer) metricLoader(c chan *stream.Data, done chan struct{}, sta
 					}
 				}
 			}
-
+			if adjustedEnd.After(end) {
+				log.Println("End of Data")
+				finished = true
+			}
 		}
 	}
 }
