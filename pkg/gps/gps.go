@@ -2,22 +2,19 @@ package gps
 
 import (
 	"fmt"
+	prom_model "github.com/prometheus/common/model"
 	"log"
 	"time"
 
 	"github.com/adrianmo/go-nmea"
-	"github.com/prometheus/prometheus/pkg/labels"
 	"go.bug.st/serial"
 
 	"github.com/slim-bean/leafbus/pkg/push"
 )
 
 var (
-	gpsLabels = labels.Labels{
-		labels.Label{
-			Name:  "job",
-			Value: "gps",
-		},
+	gpsLabels = prom_model.LabelSet{
+		"job": "gps",
 	}
 )
 

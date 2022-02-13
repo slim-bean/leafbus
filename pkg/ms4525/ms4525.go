@@ -2,14 +2,13 @@ package ms4525
 
 import (
 	"fmt"
+	prom_model "github.com/prometheus/common/model"
 	"log"
 	_ "net/http/pprof"
 	"time"
 
 	"github.com/d2r2/go-i2c"
 	"github.com/d2r2/go-logger"
-	"github.com/prometheus/prometheus/pkg/labels"
-
 	"github.com/slim-bean/leafbus/pkg/push"
 )
 
@@ -21,11 +20,8 @@ const (
 )
 
 var (
-	ms4525Label = labels.Labels{
-		labels.Label{
-			Name:  "job",
-			Value: "ms4525",
-		},
+	ms4525Label = prom_model.LabelSet{
+		"job": "ms4525",
 	}
 )
 

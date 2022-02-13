@@ -2,14 +2,13 @@ package cam
 
 import (
 	"encoding/base64"
+	prom_model "github.com/prometheus/common/model"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
 	"syscall"
 	"time"
-
-	"github.com/prometheus/prometheus/pkg/labels"
 
 	"github.com/slim-bean/leafbus/pkg/push"
 )
@@ -19,11 +18,8 @@ const (
 )
 
 var (
-	camLabels = labels.Labels{
-		labels.Label{
-			Name:  "job",
-			Value: "camera",
-		},
+	camLabels = prom_model.LabelSet{
+		"job": "camera",
 	}
 )
 

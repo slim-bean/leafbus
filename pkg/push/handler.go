@@ -6,10 +6,11 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	prom_model "github.com/prometheus/common/model"
 
 	"github.com/brutella/can"
 	"github.com/cortexproject/cortex/pkg/ingester/client"
-	"github.com/grafana/loki/pkg/logproto"
+
 	"github.com/prometheus/prometheus/pkg/labels"
 
 	"github.com/slim-bean/leafbus/pkg/model"
@@ -31,29 +32,20 @@ var (
 		Name:      "messages_sent_total",
 		Help:      "Count of all messages from canbus sent to Cortex.",
 	})
-	keyLabel = labels.Labels{
-		labels.Label{
-			Name:  "job",
-			Value: "key",
-		},
+	keyLabel = prom_model.LabelSet{
+		"job": "key",
 	}
-	turnLabel = labels.Labels{
-		labels.Label{
-			Name:  "job",
-			Value: "turn_signal",
-		},
+	turnLabel = prom_model.LabelSet{
+		"job": "turn_signal",
 	}
-	lightLabel = labels.Labels{
-		labels.Label{
-			Name:  "job",
-			Value: "headlights",
-		},
+	lightLabel = prom_model.LabelSet{
+		"job": "headlights",
 	}
 )
 
 type Handler struct {
 	cortex       *cortex
-	loki         *loki
+	loki         *lokiclient
 	runListeners []model.RunListener
 	running      bool
 	prevLights   uint8 //bit 7:  6:  5:  4:high  3: low  2: park  1: turnR  0: turnL
@@ -108,9 +100,6 @@ func (h *Handler) Handle(frame can.Frame) {
 		h.SendMetric("steering_position", nil, ts, float64(steering))
 	case 0x11A:
 		// Gear and Key/Off/On
-		if h.logBufferFull() {
-			return
-		}
 		keyOn := false
 		if frame.Data[1]&0b11100000 == 0b10000000 {
 			// Off
@@ -204,9 +193,6 @@ func (h *Handler) Handle(frame can.Frame) {
 		ts := time.Now()
 		h.SendMetric("friction_brake_pressure", nil, ts, float64(brake))
 	case 0x358:
-		if h.logBufferFull() {
-			return
-		}
 		// Turn Signal
 		turnL := frame.Data[2]&0b00000010 == 0b00000010
 		if turnL && h.prevLights&0b00000001 != 0b000000001 {
@@ -270,9 +256,6 @@ func (h *Handler) Handle(frame can.Frame) {
 		h.SendMetric("odometer", nil, ts, float64(odo))
 	case 0x625:
 		// Headlights
-		if h.logBufferFull() {
-			return
-		}
 		parkL := frame.Data[1]&0b01000000 == 0b01000000
 		if parkL && h.prevLights&0b00000100 != 0b000000100 {
 			ts := time.Now()
@@ -309,14 +292,6 @@ func (h *Handler) Handle(frame can.Frame) {
 
 func (h *Handler) metricBufferFull() bool {
 	if len(h.cortex.data) >= 100 {
-		log.Println("Ignoring packet, send buffer is full")
-		return true
-	}
-	return false
-}
-
-func (h *Handler) logBufferFull() bool {
-	if len(h.loki.data) >= 100 {
 		log.Println("Ignoring packet, send buffer is full")
 		return true
 	}
@@ -360,14 +335,9 @@ func (h *Handler) SendMetric(metricName string, additionalLabels labels.Labels, 
 	//	p.Labels = append(p.Labels, additionalLabels...)
 	//}
 	h.cortex.data <- p
+
 }
 
-func (h *Handler) SendLog(labels labels.Labels, timestamp time.Time, entry string) {
-	h.loki.data <- &singleLog{
-		Labels: labels,
-		Entry: &logproto.Entry{
-			Timestamp: timestamp,
-			Line:      entry,
-		},
-	}
+func (h *Handler) SendLog(labels prom_model.LabelSet, timestamp time.Time, entry string) error {
+	return h.loki.client.Handle(labels, timestamp, entry)
 }
