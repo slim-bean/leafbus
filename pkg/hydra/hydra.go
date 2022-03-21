@@ -249,13 +249,13 @@ func (h *hydra) send() {
 			vInVolts := uint16(p.data[14])<<8 | uint16(p.data[15])
 
 			if h.handler != nil {
-				h.handler.SendMetric("v1_volts", nil, t, float64(v1Volts)/1000)
-				h.handler.SendMetric("v1_amps", nil, t, float64(v1Current)/1000)
-				h.handler.SendMetric("v2_volts", nil, t, float64(v2Volts)/1000)
-				h.handler.SendMetric("v2_amps", nil, t, float64(v2Current)/1000)
-				h.handler.SendMetric("v3_volts", nil, t, float64(v3Volts)/1000)
-				h.handler.SendMetric("v3_amps", nil, t, float64(v3Current)/1000)
-				h.handler.SendMetric("vin_volts", nil, t, float64(vInVolts)/1000)
+				h.handler.SendMetric("v1_volts", t, float64(v1Volts)/1000)
+				h.handler.SendMetric("v1_amps", t, float64(v1Current)/1000)
+				h.handler.SendMetric("v2_volts", t, float64(v2Volts)/1000)
+				h.handler.SendMetric("v2_amps", t, float64(v2Current)/1000)
+				h.handler.SendMetric("v3_volts", t, float64(v3Volts)/1000)
+				h.handler.SendMetric("v3_amps", t, float64(v3Current)/1000)
+				h.handler.SendMetric("vin_volts", t, float64(vInVolts)/1000)
 			} else {
 				log.Println(v1Current, v1Volts, v2Current, v2Volts, v3Current, v3Volts, vInVolts)
 			}

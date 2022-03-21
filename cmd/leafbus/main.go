@@ -14,18 +14,15 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/slim-bean/leafbus/pkg/cam"
 	"github.com/slim-bean/leafbus/pkg/charge"
 	"github.com/slim-bean/leafbus/pkg/gps"
 	"github.com/slim-bean/leafbus/pkg/hydra"
 	"github.com/slim-bean/leafbus/pkg/ms4525"
 	"github.com/slim-bean/leafbus/pkg/push"
-	"github.com/slim-bean/leafbus/pkg/stream"
 )
 
 func main() {
-	cortexAddress := flag.String("cortex-address", "localhost:9002", "GRPC address and port to find cortex")
-	lokiAddress := flag.String("loki-address", "localhost:9003", "GRPC address and port to find cortex")
+	lokiAddress := flag.String("loki-address", "http://localhost:8003/loki/api/v1/push", "GRPC address and port to find cortex")
 
 	log.Println("Finding interface can0")
 	iface0, err := net.InterfaceByName("can0")
@@ -55,7 +52,7 @@ func main() {
 	}
 
 	log.Println("Creating handler")
-	handler, err := push.NewHandler(*cortexAddress, *lokiAddress)
+	handler, err := push.NewHandler(*lokiAddress)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -66,14 +63,11 @@ func main() {
 		log.Fatal(err)
 	}
 
-	log.Println("Creatign Cam")
-	cam, err := cam.NewCam(handler)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	log.Println("Creating streamer")
-	strm := stream.NewStreamer(handler)
+	//log.Println("Creatign Cam")
+	//cam, err := cam.NewCam(handler)
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
 
 	log.Println("Creating Hydra monitor")
 	hyd, err := hydra.NewHydra(handler, "/dev/ttyUSB0")
@@ -94,7 +88,7 @@ func main() {
 
 	handler.RegisterRunListener(ms)
 	handler.RegisterRunListener(gps)
-	handler.RegisterRunListener(cam)
+	//handler.RegisterRunListener(cam)
 
 	log.Println("Creating new Bus and subscribing")
 	bus0 := can.NewBus(conn0)
@@ -104,21 +98,20 @@ func main() {
 	bus1.SubscribeFunc(handler.Handle)
 
 	log.Println("Starting web server")
-	http.HandleFunc("/stream", strm.Handler)
 	http.HandleFunc("/control", func(writer http.ResponseWriter, request *http.Request) {
 		run := request.URL.Query().Get("run")
 		if strings.ToLower(run) == "true" {
 			log.Println("Starting Services from HTTP Request")
 			ms.Start()
 			gps.Start()
-			cam.Start()
+			//cam.Start()
 			writer.WriteHeader(http.StatusOK)
 			return
 		} else if strings.ToLower(run) == "false" {
 			log.Println("Stopping Services from HTTP Request")
 			ms.Stop()
 			gps.Stop()
-			cam.Stop()
+			//cam.Stop()
 			writer.WriteHeader(http.StatusOK)
 			return
 		}

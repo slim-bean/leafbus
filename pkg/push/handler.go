@@ -1,7 +1,7 @@
 package push
 
 import (
-	"log"
+	"strconv"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -9,12 +9,8 @@ import (
 	prom_model "github.com/prometheus/common/model"
 
 	"github.com/brutella/can"
-	"github.com/cortexproject/cortex/pkg/ingester/client"
-
-	"github.com/prometheus/prometheus/pkg/labels"
 
 	"github.com/slim-bean/leafbus/pkg/model"
-	"github.com/slim-bean/leafbus/pkg/stream"
 )
 
 const (
@@ -44,7 +40,6 @@ var (
 )
 
 type Handler struct {
-	cortex       *cortex
 	loki         *lokiclient
 	runListeners []model.RunListener
 	running      bool
@@ -54,25 +49,12 @@ type Handler struct {
 	lastBatteryV float64
 }
 
-func (h *Handler) Follow(name string, follower *stream.Follower) {
-	h.cortex.follow(name, follower)
-}
-
-func (h *Handler) Unfollow(name string, follower *stream.Follower) {
-	h.cortex.unfollow(name, follower)
-}
-
-func NewHandler(cortexAddress string, lokiAddress string) (*Handler, error) {
-	c, err := newCortex(cortexAddress)
-	if err != nil {
-		return nil, err
-	}
+func NewHandler(lokiAddress string) (*Handler, error) {
 	l, err := newLoki(lokiAddress)
 	if err != nil {
 		return nil, err
 	}
 	h := &Handler{
-		cortex:       c,
 		loki:         l,
 		runListeners: []model.RunListener{},
 		running:      false,
@@ -92,12 +74,9 @@ func (h *Handler) Handle(frame can.Frame) {
 
 	case 0x002:
 		// Steering Position
-		if h.metricBufferFull() {
-			return
-		}
 		steering := int16(uint16(frame.Data[1])<<8 | uint16(frame.Data[0]))
 		ts := time.Now()
-		h.SendMetric("steering_position", nil, ts, float64(steering))
+		h.SendMetric("steering_position", ts, float64(steering))
 	case 0x11A:
 		// Gear and Key/Off/On
 		keyOn := false
@@ -126,25 +105,19 @@ func (h *Handler) Handle(frame can.Frame) {
 		}
 	case 0x180:
 		//Throttle Position and Motor Amps
-		if h.metricBufferFull() {
-			return
-		}
 		motorAmps := (uint16(frame.Data[2]) << 4) | (uint16(frame.Data[3]) >> 4)
 		ts := time.Now()
-		h.SendMetric("motor_amps", nil, ts, float64(motorAmps))
+		h.SendMetric("motor_amps", ts, float64(motorAmps))
 		throttle := float64((uint16(frame.Data[5]) << 2) | (uint16(frame.Data[6]) >> 6))
 		throttle = (throttle / 800) * 100
-		h.SendMetric("throttle_percent", nil, ts, throttle)
+		h.SendMetric("throttle_percent", ts, throttle)
 	case 0x1CB:
 		// Target brake position
 		brake := (uint16(frame.Data[2]) << 2) | (uint16(frame.Data[3]) >> 6)
 		ts := time.Now()
-		h.SendMetric("target_brake", nil, ts, float64(brake))
+		h.SendMetric("target_brake", ts, float64(brake))
 	case 0x1DA:
 		//Motor Torque and Speed
-		if h.metricBufferFull() {
-			return
-		}
 		var effectiveTorque int16
 		if frame.Data[2]&0b00000100 == 0b00000100 {
 			effectiveTorque = int16(((uint16(frame.Data[2]&0b00000111) << 8) | 0b1111100000000000) | uint16(frame.Data[3]))
@@ -153,14 +126,11 @@ func (h *Handler) Handle(frame can.Frame) {
 		}
 		motorSpeed := int16(uint16(frame.Data[4])<<8 | uint16(frame.Data[5]))
 		ts := time.Now()
-		h.SendMetric("effective_torque", nil, ts, float64(effectiveTorque))
-		h.SendMetric("motor_rpm", nil, ts, float64(motorSpeed))
+		h.SendMetric("effective_torque", ts, float64(effectiveTorque))
+		h.SendMetric("motor_rpm", ts, float64(motorSpeed))
 
 	case 0x1DB:
 		//Battery Current and Voltage
-		if h.metricBufferFull() {
-			return
-		}
 		var battCurrent int16
 		if frame.Data[0]&0b10000000 == 0b10000000 {
 			battCurrent = int16((uint16(frame.Data[0]) << 3) | 0b1111100000000000 | uint16(frame.Data[1]>>6))
@@ -171,27 +141,21 @@ func (h *Handler) Handle(frame can.Frame) {
 		currVoltage = currVoltage * 0.5
 		ts := time.Now()
 		// Invert the battery current reading because I prefer it this way
-		h.SendMetric("battery_amps", nil, ts, float64(-battCurrent))
-		h.SendMetric("battery_volts", nil, ts, float64(currVoltage))
+		h.SendMetric("battery_amps", ts, float64(-battCurrent))
+		h.SendMetric("battery_volts", ts, float64(currVoltage))
 		h.lastBatteryV = currVoltage
 	case 0x280:
 		// Speed
-		if h.metricBufferFull() {
-			return
-		}
 		speed := float64(uint16(frame.Data[4])<<8 | uint16(frame.Data[5]))
 		speed = speed * 0.0062
 		ts := time.Now()
-		h.SendMetric("speed_mph", nil, ts, speed)
+		h.SendMetric("speed_mph", ts, speed)
 
 	case 0x292:
 		// Friction Brake Pressure
-		if h.metricBufferFull() {
-			return
-		}
 		brake := frame.Data[6]
 		ts := time.Now()
-		h.SendMetric("friction_brake_pressure", nil, ts, float64(brake))
+		h.SendMetric("friction_brake_pressure", ts, float64(brake))
 	case 0x358:
 		// Turn Signal
 		turnL := frame.Data[2]&0b00000010 == 0b00000010
@@ -216,26 +180,17 @@ func (h *Handler) Handle(frame can.Frame) {
 		}
 	case 0x510:
 		//Climate control power
-		if h.metricBufferFull() {
-			return
-		}
 		ccPower := float64(frame.Data[3] >> 1 & 0b00111111)
 		ccPower = ccPower * 0.25
 		ts := time.Now()
-		h.SendMetric("climate_control_kw", nil, ts, ccPower)
-		h.SendMetric("climate_control_amps", nil, ts, ccPower/h.lastBatteryV)
+		h.SendMetric("climate_control_kw", ts, ccPower)
+		h.SendMetric("climate_control_amps", ts, ccPower/h.lastBatteryV)
 	case 0x55B:
 		//SOC
-		if h.metricBufferFull() {
-			return
-		}
 		currCharge := (uint16(frame.Data[0]) << 2) | (uint16(frame.Data[1]) >> 6)
-		h.SendMetric("soc", nil, time.Now(), float64(currCharge)/10)
+		h.SendMetric("soc", time.Now(), float64(currCharge)/10)
 	case 0x5B3:
 		//GID
-		if h.metricBufferFull() {
-			return
-		}
 		gid := uint16(frame.Data[4]&0b00000001)<<8 | uint16(frame.Data[5])
 		// Sometimes we get a bogus gid value of 511 so just send the last value
 		if gid == 511 {
@@ -244,16 +199,13 @@ func (h *Handler) Handle(frame can.Frame) {
 			h.lastGid = gid
 		}
 		ts := time.Now()
-		h.SendMetric("gids", nil, ts, float64(gid))
-		h.SendMetric("trip_gids", nil, ts, float64(h.tripStartGid-gid))
+		h.SendMetric("gids", ts, float64(gid))
+		h.SendMetric("trip_gids", ts, float64(h.tripStartGid-gid))
 	case 0x5C5:
 		//Odometer
-		if h.metricBufferFull() {
-			return
-		}
 		odo := uint32(frame.Data[1])<<16 | uint32(frame.Data[2])<<8 | uint32(frame.Data[3])
 		ts := time.Now()
-		h.SendMetric("odometer", nil, ts, float64(odo))
+		h.SendMetric("odometer", ts, float64(odo))
 	case 0x625:
 		// Headlights
 		parkL := frame.Data[1]&0b01000000 == 0b01000000
@@ -290,52 +242,13 @@ func (h *Handler) Handle(frame can.Frame) {
 	}
 }
 
-func (h *Handler) metricBufferFull() bool {
-	if len(h.cortex.data) >= 100 {
-		log.Println("Ignoring packet, send buffer is full")
-		return true
-	}
-	return false
-}
-
-func (h *Handler) SendMetric(metricName string, additionalLabels labels.Labels, timestamp time.Time, val float64) {
+func (h *Handler) SendMetric(metricName string, timestamp time.Time, val float64) {
 	messagesSentCortex.Inc()
-	//p := packetPool.Get().(*Packet)
-	l := labels.Label{
-		Name:  name,
-		Value: metricName,
-	}
-	var ls labels.Labels
-	if additionalLabels != nil {
-		ls = make(labels.Labels, 0, len(additionalLabels)+1)
-		ls = append(ls, l)
-		for _, al := range additionalLabels {
-			ls = append(ls, al)
-		}
-	} else {
-		ls = labels.Labels{l}
+	l := prom_model.LabelSet{
+		"metric": prom_model.LabelValue(metricName),
 	}
 
-	p := &Packet{
-		Labels: ls,
-		Sample: client.Sample{
-			TimestampMs: timestamp.UnixNano() / int64(time.Millisecond),
-			Value:       val,
-		},
-	}
-	//ts := timestamp.UnixNano() / int64(time.Millisecond)
-	//p.Sample.TimestampMs = ts
-	//p.Sample.Value = val
-	////l := labelPool.Get().(labels.Label)
-	//labels.New()
-	//l.Name = name
-	//l.Value = metricName
-	//p.Labels = append(p.Labels, l)
-	//if additionalLabels != nil {
-	//	p.Labels = append(p.Labels, additionalLabels...)
-	//}
-	h.cortex.data <- p
-
+	h.loki.client.Handle(l, timestamp, strconv.FormatFloat(val, 'E', -1, 64))
 }
 
 func (h *Handler) SendLog(labels prom_model.LabelSet, timestamp time.Time, entry string) error {

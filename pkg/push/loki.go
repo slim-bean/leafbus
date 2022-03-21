@@ -2,10 +2,12 @@ package push
 
 import (
 	"flag"
+	"net/url"
+	"os"
+
 	"github.com/go-kit/kit/log/level"
 	"github.com/go-kit/log"
 	"github.com/grafana/loki-client-go/loki"
-	"os"
 )
 
 type lokiclient struct {
@@ -17,6 +19,11 @@ func newLoki(address string) (*lokiclient, error) {
 	// Sets defaults as well as anything from the command line
 	cfg.RegisterFlags(flag.CommandLine)
 	flag.Parse()
+	u, err := url.Parse(address)
+	if err != nil {
+		return nil, err
+	}
+	cfg.URL.URL = u
 
 	var logger log.Logger
 	logger = log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))

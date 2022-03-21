@@ -2,22 +2,10 @@
 github.com/adrianmo/go-nmea
 # github.com/beorn7/perks v1.0.1
 github.com/beorn7/perks/quantile
-# github.com/blang/semver v3.5.1+incompatible
-github.com/blang/semver
 # github.com/brutella/can v0.0.1
 github.com/brutella/can
 # github.com/cespare/xxhash/v2 v2.1.2
 github.com/cespare/xxhash/v2
-# github.com/cortexproject/cortex v1.2.1-0.20200803161316-7014ff11ed70
-github.com/cortexproject/cortex/pkg/ingester/client
-github.com/cortexproject/cortex/pkg/prom1/storage/metric
-github.com/cortexproject/cortex/pkg/util
-github.com/cortexproject/cortex/pkg/util/flagext
-github.com/cortexproject/cortex/pkg/util/grpc/encoding/snappy
-github.com/cortexproject/cortex/pkg/util/grpcclient
-github.com/cortexproject/cortex/pkg/util/middleware
-github.com/cortexproject/cortex/pkg/util/services
-github.com/cortexproject/cortex/pkg/util/tls
 # github.com/creack/goselect v0.1.1
 github.com/creack/goselect
 # github.com/d2r2/go-i2c v0.0.0-20191123181816-73a8a799d6bc
@@ -79,35 +67,27 @@ github.com/gdamore/tcell/terminfo/x/xfce
 github.com/gdamore/tcell/terminfo/x/xnuppc
 github.com/gdamore/tcell/terminfo/x/xterm
 github.com/gdamore/tcell/terminfo/x/xterm_kitty
-# github.com/go-kit/kit v0.12.0
+# github.com/go-kit/kit v0.10.0
 github.com/go-kit/kit/log
 github.com/go-kit/kit/log/level
 # github.com/go-kit/log v0.2.0
 github.com/go-kit/log
-github.com/go-kit/log/level
 # github.com/go-logfmt/logfmt v0.5.1
 github.com/go-logfmt/logfmt
-# github.com/gogo/googleapis v1.1.0
-github.com/gogo/googleapis/google/rpc
 # github.com/gogo/protobuf v1.3.2
 github.com/gogo/protobuf/gogoproto
 github.com/gogo/protobuf/proto
 github.com/gogo/protobuf/protoc-gen-gogo/descriptor
 github.com/gogo/protobuf/sortkeys
 github.com/gogo/protobuf/types
-# github.com/gogo/status v1.0.3
-github.com/gogo/status
 # github.com/golang/protobuf v1.5.2
 github.com/golang/protobuf/proto
 github.com/golang/protobuf/ptypes
 github.com/golang/protobuf/ptypes/any
 github.com/golang/protobuf/ptypes/duration
-github.com/golang/protobuf/ptypes/empty
 github.com/golang/protobuf/ptypes/timestamp
 # github.com/golang/snappy v0.0.3
 github.com/golang/snappy
-# github.com/gorilla/mux v1.7.3
-github.com/gorilla/mux
 # github.com/grafana/loki-client-go v0.0.0-20210114103019-6057f29bbf5b
 github.com/grafana/loki-client-go/loki
 github.com/grafana/loki-client-go/pkg/backoff
@@ -116,15 +96,13 @@ github.com/grafana/loki-client-go/pkg/labelutil
 github.com/grafana/loki-client-go/pkg/logproto
 github.com/grafana/loki-client-go/pkg/metric
 github.com/grafana/loki-client-go/pkg/urlutil
-# github.com/grpc-ecosystem/go-grpc-middleware v1.1.0
-github.com/grpc-ecosystem/go-grpc-middleware
 # github.com/jpillora/backoff v1.0.0
 github.com/jpillora/backoff
 # github.com/json-iterator/go v1.1.12
 github.com/json-iterator/go
 # github.com/lucasb-eyer/go-colorful v1.0.2
 github.com/lucasb-eyer/go-colorful
-# github.com/mattn/go-runewidth v0.0.6
+# github.com/mattn/go-runewidth v0.0.4
 github.com/mattn/go-runewidth
 # github.com/matttproud/golang_protobuf_extensions v1.0.1
 github.com/matttproud/golang_protobuf_extensions/pbutil
@@ -136,17 +114,9 @@ github.com/modern-go/concurrent
 github.com/modern-go/reflect2
 # github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f
 github.com/mwitkow/go-conntrack
-# github.com/opentracing-contrib/go-grpc v0.0.0-20180928155321-4b5a12d3ff02
-github.com/opentracing-contrib/go-grpc
-# github.com/opentracing-contrib/go-stdlib v1.0.0
-github.com/opentracing-contrib/go-stdlib/nethttp
-# github.com/opentracing/opentracing-go v1.2.0
-github.com/opentracing/opentracing-go
-github.com/opentracing/opentracing-go/ext
-github.com/opentracing/opentracing-go/log
 # github.com/pkg/errors v0.9.1
 github.com/pkg/errors
-# github.com/prometheus/client_golang v1.11.0
+# github.com/prometheus/client_golang v1.9.0
 github.com/prometheus/client_golang/api
 github.com/prometheus/client_golang/api/prometheus/v1
 github.com/prometheus/client_golang/prometheus
@@ -155,22 +125,18 @@ github.com/prometheus/client_golang/prometheus/promauto
 github.com/prometheus/client_golang/prometheus/promhttp
 # github.com/prometheus/client_model v0.2.0
 github.com/prometheus/client_model/go
-# github.com/prometheus/common v0.30.0
+# github.com/prometheus/common v0.15.0
 github.com/prometheus/common/config
 github.com/prometheus/common/expfmt
 github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg
 github.com/prometheus/common/model
 github.com/prometheus/common/version
-# github.com/prometheus/node_exporter v1.0.0-rc.0.0.20200428091818-01054558c289
-github.com/prometheus/node_exporter/https
 # github.com/prometheus/procfs v0.7.3
 github.com/prometheus/procfs
 github.com/prometheus/procfs/internal/fs
 github.com/prometheus/procfs/internal/util
 # github.com/prometheus/prometheus v1.8.2-0.20201028100903-3245b3267b24
-github.com/prometheus/prometheus/pkg/exemplar
 github.com/prometheus/prometheus/pkg/labels
-github.com/prometheus/prometheus/pkg/textparse
 github.com/prometheus/prometheus/pkg/value
 github.com/prometheus/prometheus/promql/parser
 github.com/prometheus/prometheus/storage
@@ -184,57 +150,18 @@ github.com/prometheus/prometheus/util/strutil
 github.com/rivo/tview
 # github.com/rivo/uniseg v0.1.0
 github.com/rivo/uniseg
-# github.com/sercand/kuberesolver v2.4.0+incompatible
-github.com/sercand/kuberesolver
-# github.com/sirupsen/logrus v1.8.1
-github.com/sirupsen/logrus
-# github.com/uber/jaeger-client-go v2.25.0+incompatible
-github.com/uber/jaeger-client-go
-github.com/uber/jaeger-client-go/internal/baggage
-github.com/uber/jaeger-client-go/internal/reporterstats
-github.com/uber/jaeger-client-go/internal/spanlog
-github.com/uber/jaeger-client-go/internal/throttler
-github.com/uber/jaeger-client-go/log
-github.com/uber/jaeger-client-go/thrift
-github.com/uber/jaeger-client-go/thrift-gen/agent
-github.com/uber/jaeger-client-go/thrift-gen/jaeger
-github.com/uber/jaeger-client-go/thrift-gen/sampling
-github.com/uber/jaeger-client-go/thrift-gen/zipkincore
-github.com/uber/jaeger-client-go/utils
-# github.com/uber/jaeger-lib v2.4.0+incompatible
-github.com/uber/jaeger-lib/metrics
-# github.com/weaveworks/common v0.0.0-20200625145055-4b1847531bc9
-github.com/weaveworks/common/errors
-github.com/weaveworks/common/grpc
-github.com/weaveworks/common/httpgrpc
-github.com/weaveworks/common/httpgrpc/server
-github.com/weaveworks/common/instrument
-github.com/weaveworks/common/logging
-github.com/weaveworks/common/middleware
-github.com/weaveworks/common/server
-github.com/weaveworks/common/signals
-github.com/weaveworks/common/user
-# github.com/weaveworks/promrus v1.2.0
-github.com/weaveworks/promrus
 # go.bug.st/serial v1.0.0
 go.bug.st/serial
 go.bug.st/serial/unixutils
 # go.uber.org/atomic v1.9.0
 go.uber.org/atomic
 # golang.org/x/net v0.0.0-20210917221730-978cfadd31cf
-golang.org/x/net/context
-golang.org/x/net/context/ctxhttp
 golang.org/x/net/http/httpguts
 golang.org/x/net/http2
 golang.org/x/net/http2/hpack
 golang.org/x/net/idna
 golang.org/x/net/internal/timeseries
-golang.org/x/net/netutil
 golang.org/x/net/trace
-# golang.org/x/oauth2 v0.0.0-20210514164344-f6687ab2804c
-golang.org/x/oauth2
-golang.org/x/oauth2/clientcredentials
-golang.org/x/oauth2/internal
 # golang.org/x/sys v0.0.0-20210917161153-d61c044b1678
 golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/unix
@@ -246,16 +173,6 @@ golang.org/x/text/secure/bidirule
 golang.org/x/text/transform
 golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
-# golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac
-golang.org/x/time/rate
-# google.golang.org/appengine v1.6.6
-google.golang.org/appengine/internal
-google.golang.org/appengine/internal/base
-google.golang.org/appengine/internal/datastore
-google.golang.org/appengine/internal/log
-google.golang.org/appengine/internal/remote_api
-google.golang.org/appengine/internal/urlfetch
-google.golang.org/appengine/urlfetch
 # google.golang.org/genproto v0.0.0-20210917145530-b395a37504d4
 google.golang.org/genproto/googleapis/rpc/status
 # google.golang.org/grpc v1.40.0
@@ -271,10 +188,8 @@ google.golang.org/grpc/codes
 google.golang.org/grpc/connectivity
 google.golang.org/grpc/credentials
 google.golang.org/grpc/encoding
-google.golang.org/grpc/encoding/gzip
 google.golang.org/grpc/encoding/proto
 google.golang.org/grpc/grpclog
-google.golang.org/grpc/health/grpc_health_v1
 google.golang.org/grpc/internal
 google.golang.org/grpc/internal/backoff
 google.golang.org/grpc/internal/balancerload
@@ -335,7 +250,6 @@ google.golang.org/protobuf/runtime/protoimpl
 google.golang.org/protobuf/types/descriptorpb
 google.golang.org/protobuf/types/known/anypb
 google.golang.org/protobuf/types/known/durationpb
-google.golang.org/protobuf/types/known/emptypb
 google.golang.org/protobuf/types/known/timestamppb
 # gopkg.in/yaml.v2 v2.4.0
 gopkg.in/yaml.v2

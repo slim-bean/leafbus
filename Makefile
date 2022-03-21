@@ -10,6 +10,16 @@ arm:
 send: arm
 	scp cmd/leafbus/leafbus pi@leaf.edjusted.com:
 
+docker-arm-64:
+	docker buildx build --platform linux/arm64 -f cmd/leafbus/Dockerfile -t slimbean/leafbus:latest --push .
+
+arm-64:
+	env GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags '-extldflags "-static"' -o cmd/leafbus/leafbus ./cmd/leafbus/main.go
+	upx cmd/leafbus/leafbus
+send-64: arm-64
+	scp cmd/leafbus/leafbus pi@leaf.edjusted.com:
+
+
 can:
 	env GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=0 go build -ldflags '-extldflags "-static"' -o cmd/cantest/cantest ./cmd/cantest/main.go
 	upx cmd/cantest/cantest

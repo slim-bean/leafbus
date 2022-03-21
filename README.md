@@ -31,6 +31,25 @@ I bought this sensor thinking it would be a good way to measure how the air hitt
 
 So far I'm not sure it's worth it.  Also I would just get the ms4525 sensor for less money somewhere else.
 
+## Raspberry Pi Setup
+
+`/boot/config.txt`
+
+```
+[all]
+dtoverlay=disable-bt
+dtoverlay=mcp2515-can0,oscillator=16000000,interrupt=25
+dtoverlay=mcp2515-can1,oscillator=16000000,interrupt=24
+dtoverlay=spi-bcm2835-overlay
+```
+
+`sudo raspi-config`
+
+```
+Interface Options->I2C->Enable
+```
+
+
 ## Building Dependencies 
 
 This project needs Loki, Cortex, and the Grafana Cloud Agent all running on the Raspberry Pi, here's how to build them

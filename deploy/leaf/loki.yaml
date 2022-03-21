@@ -1,0 +1,67 @@
+auth_enabled: false
+
+server:
+  http_listen_port: 8003
+  grpc_listen_port: 9003
+  grpc_server_max_recv_msg_size: 16777216
+  grpc_server_max_send_msg_size: 16777216
+
+common:
+  path_prefix: /loki
+  storage:
+    s3:
+      s3: s3://minioadmin:minioadmin@127.0.0.1:9000/loki-data
+      insecure: true
+      s3forcepathstyle: true
+  replication_factor: 1
+  ring:
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: memberlist
+
+schema_config:
+  configs:
+    - from: 2022-02-01
+      store: boltdb-shipper
+      object_store: aws
+      schema: v12
+      index:
+        prefix: index_
+        period: 24h
+
+ingester:
+  chunk_encoding: 'snappy'
+  chunk_idle_period: 15m
+  chunk_target_size: 1536000 # 1.5MB
+  max_chunk_age: 1h
+
+frontend_worker:
+  match_max_concurrent: true
+
+querier:
+  max_concurrent: 3
+
+limits_config:
+  max_query_series: 2000
+  max_query_length: 0h
+  min_sharding_lookback: 0s
+  retention_period: 168h
+  split_queries_by_interval: 15m
+  max_concurrent_tail_requests: 100
+
+compactor:
+  retention_enabled: true
+
+query_range:
+  results_cache:
+    cache:
+      enable_fifocache: true
+      fifocache:
+        max_size_bytes: 50MB
+
+chunk_store_config:
+  max_look_back_period: 0s
+  chunk_cache_config:
+    enable_fifocache: true
+    fifocache:
+      max_size_bytes: 50MB

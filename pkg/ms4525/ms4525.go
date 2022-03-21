@@ -2,13 +2,15 @@ package ms4525
 
 import (
 	"fmt"
-	prom_model "github.com/prometheus/common/model"
 	"log"
 	_ "net/http/pprof"
 	"time"
 
+	prom_model "github.com/prometheus/common/model"
+
 	"github.com/d2r2/go-i2c"
 	"github.com/d2r2/go-logger"
+
 	"github.com/slim-bean/leafbus/pkg/push"
 )
 
@@ -105,7 +107,7 @@ func (m *MS4525) run() {
 				m.calibrate++
 				m.handler.SendLog(ms4525Label, time.Now(), fmt.Sprintf("MS4525 Calibrated: %f", offset))
 			} else {
-				m.handler.SendMetric(PressName, nil, ts, offset-pressure)
+				m.handler.SendMetric(PressName, ts, offset-pressure)
 			}
 
 			//m.handler.SendPacket(p, PressName)
@@ -115,7 +117,7 @@ func (m *MS4525) run() {
 			//p1.Sample.TimestampMs = ts
 			temp := ((200 * float64(uint16(data[2])<<3|uint16((data[3]&0b11100000)>>5))) / 2047) - 50
 			//m.handler.SendPacket(p1, TempName)
-			m.handler.SendMetric(TempName, nil, ts, temp)
+			m.handler.SendMetric(TempName, ts, temp)
 
 			//((200.0f * dT_raw) / 2047) - 50
 			//fmt.Printf("One: %v, Two: %v, Three: %v\n", strconv.FormatUint(uint64(data[0]), 2), strconv.FormatUint(uint64(data[1]), 2), strconv.FormatUint(uint64(data[2]), 2))
