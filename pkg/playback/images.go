@@ -12,7 +12,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/grafana/loki/pkg/loghttp"
+	"github.com/slim-bean/leafbus/pkg/loghttp"
 )
 
 type imageServer struct {
@@ -43,11 +43,11 @@ func (s *imageServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(err.Error()))
 		return
 	}
-	name := r.Form.Get("name")
-	if name == "" {
-		http.Error(w, "Missing name parameter", http.StatusBadRequest)
-		return
-	}
+	//name := r.Form.Get("name")
+	//if name == "" {
+	//	http.Error(w, "Missing name parameter", http.StatusBadRequest)
+	//	return
+	//}
 
 	start, end, err := bounds(r)
 	if err != nil {
@@ -106,8 +106,9 @@ func (s *imageServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			//log.Println("Sending Image: ", currEntry.Timestamp)
 			bytes, err := base64.StdEncoding.DecodeString(currEntry.Line)
 			if err != nil {
+				//log.Println(currEntry.Line)
 				log.Println("Error base64 decoding:", err)
-				return
+				continue
 			}
 			h.Set("Content-Type", "image/jpeg")
 			h.Set("Content-Length", fmt.Sprint(len(bytes)))
@@ -153,11 +154,11 @@ func (s *imageServer) imageLoader(c chan *loghttp.Entry, done chan struct{}, sta
 				continue
 			}
 			u := url.URL{
-				Scheme: "http",
-				Host:   "localhost:8003",
+				Scheme: "https",
+				Host:   "loki-personal.edjusted.com",
 				Path:   "loki/api/v1/query_range",
 				RawQuery: fmt.Sprintf("start=%d&end=%d&direction=FORWARD", start.UnixNano(), end.UnixNano()) +
-					"&query=" + url.QueryEscape(fmt.Sprintf("{job=\"camera\"}")) +
+					"&query=" + url.QueryEscape(fmt.Sprintf("{job=\"screencap\", thumbnail=\"true\"} | logfmt | line_format \"{{.thumb}}\"")) +
 					"&limit=20",
 			}
 			//FIXME stop querying if we are after the end

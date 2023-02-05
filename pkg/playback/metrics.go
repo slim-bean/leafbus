@@ -1,17 +1,12 @@
 package playback
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"strconv"
 	"time"
-
-	"github.com/prometheus/client_golang/api"
-	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
-	"github.com/prometheus/common/model"
 
 	"github.com/slim-bean/leafbus/pkg/stream"
 )
@@ -126,84 +121,84 @@ func (s *metricServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *metricServer) metricLoader(c chan *stream.Data, done chan struct{}, start, end time.Time, queryString string, rate time.Duration) {
-	defer func() {
-		log.Println("Loader Thread Returning")
-	}()
-	lastSent := time.Unix(0, 0)
-	client, err := api.NewClient(api.Config{
-		Address: "http://localhost:8002/api/prom",
-	})
-	if err != nil {
-		fmt.Printf("Error creating client: %v\n", err)
-		return
-	}
-	v1api := v1.NewAPI(client)
-	ticker := time.NewTicker(10 * time.Millisecond)
-	finished := false
-	for {
-		select {
-		case <-done:
-			log.Println("Shutting down metric loader thread")
-			return
-		case <-ticker.C:
-			if len(c) > 250 {
-				continue
-			}
-			if finished {
-				continue
-			}
-
-			// ?query=battery_amps&start=1588515010&end=1588516734&step=2
-			adjustedEnd := start.Add(1 * time.Minute)
-
-			r := v1.Range{
-				Start: start,
-				End:   adjustedEnd,
-				Step:  rate,
-			}
-			log.Println("Querying:", queryString, "Range:", r)
-			ctx := context.Background()
-			ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-			result, warnings, err := v1api.QueryRange(ctx, queryString, r)
-			cancel()
-			if err != nil {
-				log.Printf("Error querying Prometheus: %v\n", err)
-				continue
-			}
-			if len(warnings) > 0 {
-				log.Printf("Warnings: %v\n", warnings)
-			}
-
-			if m, ok := result.(model.Matrix); ok {
-				for i, st := range m {
-					if st.Metric.String() == queryString {
-						if len(st.Values) <= 1 {
-							start = start.Add(1 * time.Minute)
-							break
-						}
-						for j, entry := range st.Values {
-							if !entry.Timestamp.After(model.TimeFromUnixNano(lastSent.UnixNano())) {
-								log.Println("ignoring old entry")
-								continue
-							}
-							//log.Println("Pushing image to queue with time:", entry.Timestamp)
-							d := &stream.Data{
-								Name:      queryString,
-								Timestamp: m[i].Values[j].Timestamp.UnixNano() / 1e6,
-								Val:       float64(m[i].Values[j].Value),
-							}
-
-							c <- d
-							lastSent = entry.Timestamp.Time()
-							start = entry.Timestamp.Time()
-						}
-					}
-				}
-			}
-			if adjustedEnd.After(end) {
-				log.Println("End of Data")
-				finished = true
-			}
-		}
-	}
+	//defer func() {
+	//	log.Println("Loader Thread Returning")
+	//}()
+	//lastSent := time.Unix(0, 0)
+	//client, err := api.NewClient(api.Config{
+	//	Address: "http://localhost:8002/api/prom",
+	//})
+	//if err != nil {
+	//	fmt.Printf("Error creating client: %v\n", err)
+	//	return
+	//}
+	//v1api := v1.NewAPI(client)
+	//ticker := time.NewTicker(10 * time.Millisecond)
+	//finished := false
+	//for {
+	//	select {
+	//	case <-done:
+	//		log.Println("Shutting down metric loader thread")
+	//		return
+	//	case <-ticker.C:
+	//		if len(c) > 250 {
+	//			continue
+	//		}
+	//		if finished {
+	//			continue
+	//		}
+	//
+	//		// ?query=battery_amps&start=1588515010&end=1588516734&step=2
+	//		adjustedEnd := start.Add(1 * time.Minute)
+	//
+	//		r := v1.Range{
+	//			Start: start,
+	//			End:   adjustedEnd,
+	//			Step:  rate,
+	//		}
+	//		log.Println("Querying:", queryString, "Range:", r)
+	//		ctx := context.Background()
+	//		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	//		result, warnings, err := v1api.QueryRange(ctx, queryString, r)
+	//		cancel()
+	//		if err != nil {
+	//			log.Printf("Error querying Prometheus: %v\n", err)
+	//			continue
+	//		}
+	//		if len(warnings) > 0 {
+	//			log.Printf("Warnings: %v\n", warnings)
+	//		}
+	//
+	//		if m, ok := result.(model.Matrix); ok {
+	//			for i, st := range m {
+	//				if st.Metric.String() == queryString {
+	//					if len(st.Values) <= 1 {
+	//						start = start.Add(1 * time.Minute)
+	//						break
+	//					}
+	//					for j, entry := range st.Values {
+	//						if !entry.Timestamp.After(model.TimeFromUnixNano(lastSent.UnixNano())) {
+	//							log.Println("ignoring old entry")
+	//							continue
+	//						}
+	//						//log.Println("Pushing image to queue with time:", entry.Timestamp)
+	//						d := &stream.Data{
+	//							Name:      queryString,
+	//							Timestamp: m[i].Values[j].Timestamp.UnixNano() / 1e6,
+	//							Val:       float64(m[i].Values[j].Value),
+	//						}
+	//
+	//						c <- d
+	//						lastSent = entry.Timestamp.Time()
+	//						start = entry.Timestamp.Time()
+	//					}
+	//				}
+	//			}
+	//		}
+	//		if adjustedEnd.After(end) {
+	//			log.Println("End of Data")
+	//			finished = true
+	//		}
+	//	}
+	//}
 }

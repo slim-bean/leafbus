@@ -12,11 +12,11 @@ func main() {
 	synchroinzer := playback.NewSynchroinzer(controlChannel)
 
 	imageServer := playback.NewImageServer(synchroinzer)
-	metricServer := playback.NewMetricServer(synchroinzer)
+	//metricServer := playback.NewMetricServer(synchroinzer)
 
 	log.Println("Starting web server on 9999")
 	http.HandleFunc("/mjpeg", imageServer.ServeHTTP)
-	http.HandleFunc("/metrics", metricServer.ServeHTTP)
+	//http.HandleFunc("/metrics", metricServer.ServeHTTP)
 	http.HandleFunc("/control", synchroinzer.ServeHTTP)
 
 	if err := http.ListenAndServe(":9999", nil); err != nil {

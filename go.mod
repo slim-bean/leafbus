@@ -3,19 +3,16 @@ module github.com/slim-bean/leafbus
 go 1.13
 
 require (
-	contrib.go.opencensus.io/exporter/stackdriver v0.6.0 // indirect
-	git.apache.org/thrift.git v0.0.0-20180924222215-a9235805469b // indirect
-	github.com/Azure/azure-sdk-for-go v26.3.0+incompatible // indirect
-	github.com/Azure/go-autorest v11.5.1+incompatible // indirect
 	github.com/adrianmo/go-nmea v1.1.0
 	github.com/brutella/can v0.0.1
+	github.com/buger/jsonparser v1.1.1
 	github.com/cortexproject/cortex v0.4.1-0.20191217132644-cd4009e2f8e7
 	github.com/d2r2/go-i2c v0.0.0-20191123181816-73a8a799d6bc
 	github.com/d2r2/go-logger v0.0.0-20181221090742-9998a510495e
 	github.com/gdamore/tcell v1.3.0
-	github.com/golang/lint v0.0.0-20180702182130-06c8688daad7 // indirect
 	github.com/grafana/loki v1.3.0
-	github.com/mattes/migrate v1.3.1 // indirect
+	github.com/json-iterator/go v1.1.9
+	github.com/modern-go/reflect2 v1.0.1
 	github.com/prometheus/client_golang v1.6.0
 	github.com/prometheus/common v0.9.1
 	github.com/prometheus/prometheus v1.8.2-0.20190918104050-8744afdd1ea0
