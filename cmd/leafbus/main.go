@@ -20,12 +20,16 @@ import (
 	"github.com/slim-bean/leafbus/pkg/hydra"
 	"github.com/slim-bean/leafbus/pkg/ms4525"
 	"github.com/slim-bean/leafbus/pkg/push"
+	"github.com/slim-bean/leafbus/pkg/store"
 	"github.com/slim-bean/leafbus/pkg/stream"
+	"github.com/slim-bean/leafbus/pkg/wattcycle"
 )
 
 func main() {
-	cortexAddress := flag.String("cortex-address", "localhost:9002", "GRPC address and port to find cortex")
-	lokiAddress := flag.String("loki-address", "localhost:9003", "GRPC address and port to find cortex")
+	parquetDir := flag.String("parquet-dir", "", "Base directory for parquet output (required)")
+	duckdbPath := flag.String("duckdb-path", "", "Optional path to the duckdb database file")
+	wattcycleAddress := flag.String("wattcycle-address", wattcycle.DefaultAddress, "BLE address for the WattCycle 12V battery")
+	flag.Parse()
 
 	log.Println("Finding interface can0")
 	iface0, err := net.InterfaceByName("can0")
@@ -49,19 +53,29 @@ func main() {
 	}
 
 	log.Println("Creating new Charge Monitor")
-	chargeMonitor, err := charge.NewMonitor("http://172.20.31.75")
+	chargeMonitor, err := charge.NewMonitor("http://172.20.31.75", nil)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	log.Println("Creating handler")
-	handler, err := push.NewHandler(*cortexAddress, *lokiAddress)
+	if *parquetDir == "" {
+		log.Fatal("parquet-dir is required")
+	}
+	writer, err := store.NewWriter(*parquetDir, *duckdbPath)
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer writer.Close()
+
+	handler, err := push.NewHandler(writer)
+	if err != nil {
+		log.Fatal(err)
+	}
+	chargeMonitor.SetHandler(handler)
 
 	log.Println("Creating GPS")
-	gps, err := gps.NewGPS(handler, "/dev/ttyAMA0")
+	gps, err := gps.NewGPS(handler, "/dev/ttyAMA1")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -90,6 +104,24 @@ func main() {
 	ms, err := ms4525.NewMS4525(handler, 1)
 	if err != nil {
 		log.Println(err)
+	}
+
+	log.Println("Creating WattCycle monitor")
+	wattMonitor, err := wattcycle.NewMonitor(wattcycle.Config{
+		Address: *wattcycleAddress,
+	})
+	if err != nil {
+		log.Println("Failed to create WattCycle monitor:", err)
+	} else {
+		if err := wattMonitor.Start(); err != nil {
+			log.Println("Failed to start WattCycle monitor:", err)
+		} else {
+			go func() {
+				for st := range wattMonitor.Statuses() {
+					handler.UpdateBattery12V(st.Timestamp, st.SOC, st.Voltage, st.Current, st.TempsC, st.Status)
+				}
+			}()
+		}
 	}
 
 	handler.RegisterRunListener(ms)
@@ -161,6 +193,9 @@ func main() {
 	case <-c:
 		bus0.Disconnect()
 		bus1.Disconnect()
+		if wattMonitor != nil {
+			wattMonitor.Stop()
+		}
 	}
 	log.Println("Exiting")
 }

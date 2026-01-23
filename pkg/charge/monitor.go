@@ -5,23 +5,31 @@ import (
 	"time"
 
 	"github.com/brutella/can"
+
+	"github.com/slim-bean/leafbus/pkg/push"
 )
 
 type Monitor struct {
 	charger    *openevse
 	currCharge uint16
+	handler    *push.Handler
 }
 
-func NewMonitor(chargerAddress string) (*Monitor, error) {
+func NewMonitor(chargerAddress string, handler *push.Handler) (*Monitor, error) {
 	ch, err := newopenevse(chargerAddress)
 	if err != nil {
 		return nil, err
 	}
 	m := &Monitor{
 		charger: ch,
+		handler: handler,
 	}
 	go m.run()
 	return m, nil
+}
+
+func (m *Monitor) SetHandler(handler *push.Handler) {
+	m.handler = handler
 }
 
 func (m *Monitor) Handle(frame can.Frame) {
@@ -44,6 +52,9 @@ func (m *Monitor) run() {
 				continue
 			}
 			log.Println(st)
+			if m.handler != nil {
+				m.handler.UpdateCharger(time.Now(), st.String(), float64(m.currCharge)/10)
+			}
 			if st == charging && m.currCharge >= 780 {
 				log.Println("Reached charge limit, stopping charging")
 				_, err := m.charger.sendCommand(sleep)

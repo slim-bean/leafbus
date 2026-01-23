@@ -31,9 +31,28 @@ I bought this sensor thinking it would be a good way to measure how the air hitt
 
 So far I'm not sure it's worth it.  Also I would just get the ms4525 sensor for less money somewhere else.
 
-## Building Dependencies 
+## Storage
 
-This project needs Loki, Cortex, and the Grafana Cloud Agent all running on the Raspberry Pi, here's how to build them
+Leafbus stores data locally using DuckDB and hourly Parquet files. Run `leafbus` with `--parquet-dir` (and optionally `--duckdb-path`) to set where data is written.
+
+## Cross-compiling for ARM64
+
+DuckDB uses CGO and links against `libstdc++`. When cross-compiling, install the ARM64 C++ toolchain and build with CGO enabled.
+
+```bash
+sudo apt-get update
+sudo apt-get install gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+```
+
+Then build for arm64:
+
+```bash
+ARM_CC=aarch64-linux-gnu-gcc make arm
+```
+
+## Legacy Loki/Cortex Notes
+
+These Loki/Cortex build notes are kept for historical reference and are no longer required for current data capture.
 
 To cross compile the docker images for Cortex and Loki I use [buildx](https://docs.docker.com/buildx/working-with-buildx/)
 

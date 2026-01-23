@@ -6,19 +6,9 @@ import (
 	"time"
 
 	"github.com/adrianmo/go-nmea"
-	"github.com/prometheus/prometheus/pkg/labels"
 	"go.bug.st/serial"
 
 	"github.com/slim-bean/leafbus/pkg/push"
-)
-
-var (
-	gpsLabels = labels.Labels{
-		labels.Label{
-			Name:  "job",
-			Value: "gps",
-		},
-	}
 )
 
 type GPS struct {
@@ -112,7 +102,12 @@ func (n *GPS) run() {
 			switch m := s.(type) {
 			case nmea.GPRMC:
 				if m.Validity == "A" {
-					n.handler.SendLog(gpsLabels, time.Date(m.Date.YY+2000, time.Month(m.Date.MM), m.Date.DD, m.Time.Hour, m.Time.Minute, m.Time.Second, m.Time.Millisecond*1000000, time.UTC), fmt.Sprintf("%f,%f", m.Latitude, m.Longitude))
+					ts := time.Date(m.Date.YY+2000, time.Month(m.Date.MM), m.Date.DD, m.Time.Hour, m.Time.Minute, m.Time.Second, m.Time.Millisecond*1000000, time.UTC)
+					if n.handler != nil {
+						n.handler.UpdateGPS(ts, m.Latitude, m.Longitude)
+					} else {
+						log.Println("GPS:", fmt.Sprintf("%f,%f", m.Latitude, m.Longitude))
+					}
 				} else {
 					log.Println("Invalid GPS Signal")
 				}
