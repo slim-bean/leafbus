@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -53,6 +54,11 @@ type Writer struct {
 	runtimeHourUTC time.Time
 }
 
+type QueryResult struct {
+	Columns []string        `json:"columns"`
+	Rows    [][]interface{} `json:"rows"`
+}
+
 func NewWriter(baseDir string, dbPath string) (*Writer, error) {
 	if baseDir == "" {
 		return nil, fmt.Errorf("parquet base dir is required")
@@ -80,6 +86,44 @@ func NewWriter(baseDir string, dbPath string) (*Writer, error) {
 	w.wg.Add(1)
 	go w.run()
 	return w, nil
+}
+
+func (w *Writer) Query(ctx context.Context, sqlQuery string) (*QueryResult, error) {
+	rows, err := w.db.QueryContext(ctx, sqlQuery)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			log.Println("failed to close query rows:", cerr)
+		}
+	}()
+	cols, err := rows.Columns()
+	if err != nil {
+		return nil, err
+	}
+	result := &QueryResult{
+		Columns: cols,
+		Rows:    make([][]interface{}, 0),
+	}
+	for rows.Next() {
+		values := make([]interface{}, len(cols))
+		scanTargets := make([]interface{}, len(cols))
+		for i := range values {
+			scanTargets[i] = &values[i]
+		}
+		if err := rows.Scan(scanTargets...); err != nil {
+			return nil, err
+		}
+		for i, v := range values {
+			values[i] = normalizeValue(v)
+		}
+		result.Rows = append(result.Rows, values)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func (w *Writer) Close() {
@@ -370,4 +414,17 @@ func timestampLiteral(ts time.Time) string {
 
 func escapePath(path string) string {
 	return strings.ReplaceAll(path, "'", "''")
+}
+
+func normalizeValue(val interface{}) interface{} {
+	switch v := val.(type) {
+	case nil:
+		return nil
+	case []byte:
+		return string(v)
+	case time.Time:
+		return v.UTC().Format(time.RFC3339Nano)
+	default:
+		return v
+	}
 }

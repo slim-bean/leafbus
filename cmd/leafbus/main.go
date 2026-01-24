@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -9,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"time"
 
 	"github.com/brutella/can"
 	"github.com/prometheus/client_golang/prometheus"
@@ -75,7 +78,7 @@ func main() {
 	chargeMonitor.SetHandler(handler)
 
 	log.Println("Creating GPS")
-	gps, err := gps.NewGPS(handler, "/dev/ttyAMA1")
+	gps, err := gps.NewGPS(handler, "/dev/ttyAMA3")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -137,6 +140,38 @@ func main() {
 
 	log.Println("Starting web server")
 	http.HandleFunc("/stream", strm.Handler)
+	http.HandleFunc("/query", func(response http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost {
+			response.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		var payload queryRequest
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			http.Error(response, "invalid JSON body", http.StatusBadRequest)
+			return
+		}
+		payload.SQL = strings.TrimSpace(payload.SQL)
+		if payload.SQL == "" {
+			http.Error(response, "sql is required", http.StatusBadRequest)
+			return
+		}
+		if !isQueryAllowed(payload.SQL) {
+			http.Error(response, "only SELECT/WITH queries are allowed", http.StatusBadRequest)
+			return
+		}
+		sqlQuery := applyLimit(payload.SQL, payload.Limit)
+		ctx, cancel := context.WithTimeout(request.Context(), 5*time.Second)
+		defer cancel()
+		result, err := writer.Query(ctx, sqlQuery)
+		if err != nil {
+			http.Error(response, fmt.Sprintf("query failed: %v", err), http.StatusBadRequest)
+			return
+		}
+		response.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(response).Encode(result); err != nil {
+			log.Println("failed to write query response:", err)
+		}
+	})
 	http.HandleFunc("/control", func(writer http.ResponseWriter, request *http.Request) {
 		run := request.URL.Query().Get("run")
 		if strings.ToLower(run) == "true" {
@@ -198,6 +233,30 @@ func main() {
 		}
 	}
 	log.Println("Exiting")
+}
+
+type queryRequest struct {
+	SQL   string `json:"sql"`
+	Limit int    `json:"limit"`
+}
+
+func isQueryAllowed(sql string) bool {
+	if strings.Contains(sql, ";") {
+		return false
+	}
+	normalized := strings.TrimSpace(strings.ToLower(sql))
+	return strings.HasPrefix(normalized, "select ") || strings.HasPrefix(normalized, "with ")
+}
+
+func applyLimit(sql string, limit int) string {
+	if limit <= 0 {
+		return sql
+	}
+	lowered := strings.ToLower(sql)
+	if strings.Contains(lowered, " limit ") {
+		return sql
+	}
+	return fmt.Sprintf("%s limit %d", strings.TrimSpace(sql), limit)
 }
 
 // logCANFrame logs a frame with the same format as candump from can-utils.

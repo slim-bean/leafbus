@@ -53,6 +53,8 @@ type Monitor struct {
 	stopped  chan struct{}
 	mu       sync.Mutex
 	running  bool
+	lastMu   sync.Mutex
+	last     Status
 }
 
 func NewMonitor(cfg Config) (*Monitor, error) {
@@ -149,6 +151,8 @@ func (m *Monitor) run() {
 
 	ticker := time.NewTicker(m.cfg.PollInterval)
 	defer ticker.Stop()
+	logTicker := time.NewTicker(30 * time.Second)
+	defer logTicker.Stop()
 	for {
 		select {
 		case <-ticker.C:
@@ -160,6 +164,10 @@ func (m *Monitor) run() {
 			if _, err := writeChar.WriteWithoutResponse(cmdGetData); err != nil {
 				log.Println("error writing data request:", err)
 				return
+			}
+		case <-logTicker.C:
+			if st, ok := m.latestStatus(); ok {
+				log.Printf("WattCycle 12V: %.2fV (SOC %.0f%%)\n", st.Voltage, st.SOC)
 			}
 		case <-m.stopCh:
 			return
@@ -259,6 +267,7 @@ func (m *Monitor) notificationHandler(buf []byte) {
 	default:
 		log.Println("wattcycle status buffer full, dropping")
 	}
+	m.setLatestStatus(st)
 }
 
 func decodeCurrentAndStatus(raw uint16) (float64, string) {
@@ -284,4 +293,19 @@ func decodeCurrentAndStatus(raw uint16) (float64, string) {
 func decodeTemp(raw uint16) float64 {
 	// Common BMS reports temperatures in 0.1K with a 273.1K offset.
 	return (float64(raw) - 2731.0) / 10.0
+}
+
+func (m *Monitor) setLatestStatus(st Status) {
+	m.lastMu.Lock()
+	m.last = st
+	m.lastMu.Unlock()
+}
+
+func (m *Monitor) latestStatus() (Status, bool) {
+	m.lastMu.Lock()
+	defer m.lastMu.Unlock()
+	if m.last.Timestamp.IsZero() {
+		return Status{}, false
+	}
+	return m.last, true
 }

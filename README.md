@@ -50,6 +50,186 @@ Then build for arm64:
 ARM_CC=aarch64-linux-gnu-gcc make arm
 ```
 
+### Raspberry Pi runtime dependencies
+
+If you see errors like:
+
+- `GLIBC_2.32` / `GLIBC_2.34` / `GLIBC_2.38` not found
+- `GLIBCXX_3.4.29` / `GLIBCXX_3.4.30` not found
+- `CXXABI_1.3.13` not found
+
+then the binary was linked against newer glibc/libstdc++ than the Pi provides. You have two options:
+
+1) **Build on the Pi** (recommended for compatibility)
+
+```bash
+sudo apt-get update
+sudo apt-get install build-essential
+go build -o leafbus ./cmd/leafbus/main.go
+```
+
+2) **Upgrade the Pi's runtime** to a newer distro that ships newer glibc/libstdc++ (e.g. Debian bookworm or newer).
+
+These errors indicate missing **glibc** and **libstdc++** versions on the target system.
+
+## Grafana `/query` API
+
+Leafbus exposes a read-only SQL endpoint at `POST /query`. It accepts only `SELECT` or `WITH` statements and returns JSON in this format:
+
+```json
+{
+  "columns": ["ts", "value"],
+  "rows": [
+    ["2026-01-23T22:00:00Z", 42.0],
+    ["2026-01-23T22:00:10Z", 43.1]
+  ]
+}
+```
+
+## Running
+
+### Raspberry Pi
+
+I'm running on a Raspberry Pi 4, if you are using something else the config.txt stuff may change
+
+I installed a normal 64 bit Raspbery Pi OS
+
+To enable support for the CAN board and an additional UART for the GPS module
+
+```
+[all]
+
+# CAN board settings
+dtoverlay=mcp2515-can0,oscillator=16000000,interrupt=25
+dtoverlay=mcp2515-can1,oscillator=16000000,interrupt=24
+dtoverlay=spi-bcm2835-overlay
+
+# this may not strictly be necessary but AI tells me it locks the VPU clock which stabilizes the UARTS
+enable_uart=1
+
+# Will be used for GPS
+dtoverlay=uart3
+```
+
+Then I created a systemd unit to init CAN `can-setup.service`
+
+```
+[Unit]
+Description=CAN Bus Interface Setup
+
+[Service]
+Type=oneshot
+ExecStart=/bin/ip link set can0 up type can bitrate 500000
+ExecStart=/bin/ip link set can1 up type can bitrate 500000
+User=root
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+```
+
+and for the leafbus process `leafbus.service`
+```
+[Unit]
+Description=Leafbus CAN Service
+After=can-setup.service
+Requires=can-setup.service
+
+[Service]
+Type=simple
+ExecStartPre=/bin/sleep 10
+ExecStart=/home/pi/leafbus
+WorkingDirectory=/home/pi
+User=root
+Restart=always
+StandardOutput=append:/home/pi/leafbus.out
+StandardError=append:/home/pi/leafbus.out
+
+[Install]
+WantedBy=multi-user.target
+```
+
+##### Bluetooth
+
+```
+pi@leaf:~ $ rfkill list
+0: hci0: Bluetooth
+        Soft blocked: yes
+        Hard blocked: no
+1: phy0: Wireless LAN
+        Soft blocked: no
+        Hard blocked: no
+```
+`sudo rfkill unblock bluetooth`
+
+##### Test GPS
+
+```
+pi@leaf:~ $ stty -F /dev/ttyAMA1 9600 raw
+stty: /dev/ttyAMA1: No such file or directory
+pi@leaf:~ $ stty -F /dev/ttyAMA3 9600 raw
+pi@leaf:~ $ cat /dev/ttyAMA3
+10,45,44,26,230,42*7D
+$GPGSV,3,3,12,09,24,071,33,17,16,124,47,04,12,042,31,29,05,306,25*79
+$GPRMC,003231.000,A,4301.0796,N,07741.7006,W,0.01,307.12,240126,,,D*75
+$GPVTG,307.12,T,,M,0.01,N,0.02,K,D*3C
+$GPGGA,003232.000,4301.0796,N,07741.7006,W,2,11,0.79,201.6,M,-34.3,M,0000,0000*55
+$GPGSA,A,3,04,05,12,17,19,09,06,11,25,21,29,,1.44,0.79,1.21*03
+$GPRMC,003232.000,A,4301.0796,N,07741.7006,W,0.01,251.59,240126,,,D*7B
+$GPVTG,251.59,T,,M,0.01,N,0.01,K,D*32
+$GPGGA,003233.000,4301.0796,N,07741.7006,W,2,11,0.79,201.7,M,-34.3,M,0000,0000*55
+$GPGSA,A,3,04,05,12,17,19,09,06,11,25,21,29,,1.44,0.79,1.21*03
+$GPRMC,003233.000,A,4301.0796,N,07741.7006,W,0.01,207.86,240126,,,D*7B
+$GPVTG,207.86,T,,M,0.01,N,0.02,K,D*30
+$GPGGA,003234.000,4301.0796,N,07741.7006,W,2,11,0.79,201.7,M,-34.3,M,0000,0000*52
+$GPGSA,A,3,04,05,12,17,19,09,06,11,25,21,29,,1.44,0.79,1.21*03
+$GPRMC,003234.000,A,4301.0796,N,07741.7006,W,0.02,122.54,240126,,,D*74
+$GPVTG,122.54,T,,M,0.02,N,0.04,K,D*3E
+```
+
+##### Hydra PS
+
+`sudo picocom /dev/ttyUSB0`
+
+`:x` enter to exit binary mode
+
+
+### Grafana JSON API datasource
+
+Use the JSON API datasource plugin and configure:
+
+- **URL**: `http://<leafbus-host>:7777`
+- **HTTP Method**: `POST`
+- **Path**: `/query`
+- **Body**:
+```json
+{ "sql": "select ts, value from runtime_metrics where name = 'speed_mph' and ts >= to_timestamp(${__from}/1000) and ts <= to_timestamp(${__to}/1000) order by ts", "limit": 10000 }
+```
+
+### Example queries
+
+Runtime metrics (time series):
+
+```sql
+select ts, value
+from runtime_metrics
+where name = 'speed_mph'
+  and ts >= to_timestamp(${__from}/1000)
+  and ts <= to_timestamp(${__to}/1000)
+order by ts
+```
+
+Status table (latest 12V battery):
+
+```sql
+select ts, battery12v_volts, battery12v_soc, battery12v_amps, battery12v_temp_c
+from status_hourly
+where ts >= to_timestamp(${__from}/1000)
+  and ts <= to_timestamp(${__to}/1000)
+order by ts desc
+limit 200
+```
+
 ## Legacy Loki/Cortex Notes
 
 These Loki/Cortex build notes are kept for historical reference and are no longer required for current data capture.
@@ -151,79 +331,3 @@ image-viewer-panel
 streaming-json-datasource
 grafana-trackmap-panel
 
-## Running
-
-### Raspberry Pi
-
-Use official raspbian image, this makes things like the camera and using serial ports and things a lot easier but has one big drawback.
-
-It's a 32bit OS and Cortex using the TSDB blocks store does not like 32bit OS, it will memory map TSDB blocks that are created.  
-You will get out of memory errors if you use the compactor, and you will likely see other out of memory errors if you keep too much data on the Raspberry Pi.
-
-I did at one point have 64bit Ubuntu installed however this made everything else harder so I moved away from it. 
-
-Install Docker, Enable the Camera, Setup PiCan2 Duo
-
-Run ansible playbook
-
-There is a docker-compose file to get all the images running
-```bash
-`export DOCKER_HOST="ssh://pi@leaf.edjusted.com"`
-`docker-compose up -d`
-```
-  
-High level goals:
-
-1. Use live streaming to influence better driving behaviors
-2. Use stored data to determine more efficient routes
-
-Challenges:
-
-Eliminating variables
-
-
-
-
-
-
-Hydra PS
-
-`sudo picocom /dev/ttyUSB0`
-
-`:x` enter to exit binary mode
-
-
-Ras pi, ubuntu and serial
-
-sudo apt remove snapd
-sudo systemctl stop unattended-upgrades.service
-sudo systemctl disable unattended-upgrades.service
-
-
-Had to change the bootloader because the ubuntu uboot seems to enable the serial console via terminal and has a `Hit any key to stop autoboot` which would read the NMEA messages from the GPS module and stop booting.  I found [instructions here](https://wiki.ubuntu.com/ARM/RaspberryPi#Change_the_bootloader) but basically I only needed to modify the `/boot/firmware/config.txt` like so:
-
-config.txt
-```
-[all]
-arm_64bit=1
-#device_tree_address=0x03000000
-kernel=vmlinuz
-initramfs initrd.img followkernel
-```
-
-And then we need to disable serial console from the OS too:
-
-nobtcfg.txt
-```
-enable_uart=1
-#cmdline=nobtcmd.txt
-cmdline=nobtnoserialcmd.txt
-dtoverlay=pi3-disable-bt
-```
-
-nobtnoserialcmd.txt
-```
-net.ifnames=0 dwc_otg.lpm_enable=0 console=tty1 root=LABEL=writable rootfstype=ext4 elevator=deadline rootwait fixrtc
-```
-
-(just removing `console=ttyAMA0,115200`)
