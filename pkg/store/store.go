@@ -555,16 +555,18 @@ func (w *Writer) ensureQueryViews(ctx context.Context, conn *sql.Conn) error {
 
 func (w *Writer) createHistoryView(ctx context.Context, conn *sql.Conn, viewName string, tableName string, baseDir string, hasParquet bool, fileName string) error {
 	if !hasParquet {
-		_, err := conn.ExecContext(ctx, fmt.Sprintf("CREATE OR REPLACE TEMP VIEW %s AS SELECT * FROM %s", viewName, tableName))
+		_, err := conn.ExecContext(ctx, fmt.Sprintf("CREATE OR REPLACE TEMP VIEW %s AS SELECT %s FROM %s", viewName, columnListForTable(tableName), tableName))
 		return err
 	}
 	hiveGlob := filepath.ToSlash(filepath.Join(baseDir, "year=*", "month=*", "day=*", "hour=*", fileName))
 	stmt := fmt.Sprintf(
 		`CREATE OR REPLACE TEMP VIEW %s AS
-SELECT * FROM %s
-UNION ALL SELECT * FROM read_parquet('%s', hive_partitioning=1)`,
+SELECT %s FROM %s
+UNION ALL SELECT %s FROM read_parquet('%s', hive_partitioning=1)`,
 		viewName,
+		columnListForTable(tableName),
 		tableName,
+		columnListForTable(tableName),
 		escapePath(hiveGlob),
 	)
 	_, err := conn.ExecContext(ctx, stmt)
@@ -600,4 +602,47 @@ func rewriteQueryForHistory(sqlQuery string) string {
 		out = re.ReplaceAllString(out, dst)
 	}
 	return out
+}
+
+func columnListForTable(tableName string) string {
+	switch tableName {
+	case "status_hourly":
+		return strings.Join(statusColumns, ", ")
+	case "runtime_metrics":
+		return strings.Join(runtimeColumns, ", ")
+	default:
+		return "*"
+	}
+}
+
+var statusColumns = []string{
+	"ts",
+	"battery12v_soc",
+	"battery12v_volts",
+	"battery12v_amps",
+	"battery12v_temp_c",
+	"battery12v_temps",
+	"battery12v_status",
+	"traction_soc",
+	"traction_temp_c",
+	"gps_lat",
+	"gps_lon",
+	"charger_state",
+	"charger_soc",
+	"hydra_v1_volts",
+	"hydra_v1_amps",
+	"hydra_v2_volts",
+	"hydra_v2_amps",
+	"hydra_v3_volts",
+	"hydra_v3_amps",
+	"hydra_vin_volts",
+}
+
+var runtimeColumns = []string{
+	"ts",
+	"name",
+	"value",
+	"text",
+	"labels",
+	"kind",
 }
