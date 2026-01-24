@@ -4,9 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io/fs"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -32,6 +35,13 @@ type StatusRow struct {
 	GPSLon           sql.NullFloat64
 	ChargerState     sql.NullString
 	ChargerSOC       sql.NullFloat64
+	HydraV1Volts     sql.NullFloat64
+	HydraV1Amps      sql.NullFloat64
+	HydraV2Volts     sql.NullFloat64
+	HydraV2Amps      sql.NullFloat64
+	HydraV3Volts     sql.NullFloat64
+	HydraV3Amps      sql.NullFloat64
+	HydraVinVolts    sql.NullFloat64
 }
 
 type RuntimeRow struct {
@@ -52,6 +62,10 @@ type Writer struct {
 	wg             sync.WaitGroup
 	statusHourUTC  time.Time
 	runtimeHourUTC time.Time
+	statusDrops    int
+	runtimeDrops   int
+	statusDropLog  time.Time
+	runtimeDropLog time.Time
 }
 
 type QueryResult struct {
@@ -76,20 +90,34 @@ func NewWriter(baseDir string, dbPath string) (*Writer, error) {
 	w := &Writer{
 		db:        db,
 		baseDir:   baseDir,
-		statusCh:  make(chan StatusRow, 2000),
-		runtimeCh: make(chan RuntimeRow, 5000),
+		statusCh:  make(chan StatusRow, 20000),
+		runtimeCh: make(chan RuntimeRow, 200000),
 		closeCh:   make(chan struct{}),
 	}
 	if err := w.initSchema(); err != nil {
 		return nil, err
 	}
-	w.wg.Add(1)
-	go w.run()
+	w.wg.Add(2)
+	go w.runStatus()
+	go w.runRuntime()
 	return w, nil
 }
 
 func (w *Writer) Query(ctx context.Context, sqlQuery string) (*QueryResult, error) {
-	rows, err := w.db.QueryContext(ctx, sqlQuery)
+	conn, err := w.db.Conn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if cerr := conn.Close(); cerr != nil {
+			log.Println("failed to close query connection:", cerr)
+		}
+	}()
+	if err := w.ensureQueryViews(ctx, conn); err != nil {
+		return nil, err
+	}
+	query := rewriteQueryForHistory(sqlQuery)
+	rows, err := conn.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +166,12 @@ func (w *Writer) EnqueueStatus(row StatusRow) {
 	select {
 	case w.statusCh <- row:
 	default:
-		log.Println("status buffer full, dropping row")
+		w.statusDrops++
+		if time.Since(w.statusDropLog) > 10*time.Second {
+			log.Printf("status buffer full, dropping rows (dropped=%d)\n", w.statusDrops)
+			w.statusDrops = 0
+			w.statusDropLog = time.Now()
+		}
 	}
 }
 
@@ -146,7 +179,12 @@ func (w *Writer) EnqueueRuntime(row RuntimeRow) {
 	select {
 	case w.runtimeCh <- row:
 	default:
-		log.Println("runtime buffer full, dropping row")
+		w.runtimeDrops++
+		if time.Since(w.runtimeDropLog) > 10*time.Second {
+			log.Printf("runtime buffer full, dropping rows (dropped=%d)\n", w.runtimeDrops)
+			w.runtimeDrops = 0
+			w.runtimeDropLog = time.Now()
+		}
 	}
 }
 
@@ -165,7 +203,14 @@ func (w *Writer) initSchema() error {
 			gps_lat DOUBLE,
 			gps_lon DOUBLE,
 			charger_state VARCHAR,
-			charger_soc DOUBLE
+			charger_soc DOUBLE,
+			hydra_v1_volts DOUBLE,
+			hydra_v1_amps DOUBLE,
+			hydra_v2_volts DOUBLE,
+			hydra_v2_amps DOUBLE,
+			hydra_v3_volts DOUBLE,
+			hydra_v3_amps DOUBLE,
+			hydra_vin_volts DOUBLE
 		);`,
 		`CREATE TABLE IF NOT EXISTS runtime_metrics (
 			ts TIMESTAMP,
@@ -181,16 +226,29 @@ func (w *Writer) initSchema() error {
 			return err
 		}
 	}
+	alterStmts := []string{
+		`ALTER TABLE status_hourly ADD COLUMN IF NOT EXISTS hydra_v1_volts DOUBLE`,
+		`ALTER TABLE status_hourly ADD COLUMN IF NOT EXISTS hydra_v1_amps DOUBLE`,
+		`ALTER TABLE status_hourly ADD COLUMN IF NOT EXISTS hydra_v2_volts DOUBLE`,
+		`ALTER TABLE status_hourly ADD COLUMN IF NOT EXISTS hydra_v2_amps DOUBLE`,
+		`ALTER TABLE status_hourly ADD COLUMN IF NOT EXISTS hydra_v3_volts DOUBLE`,
+		`ALTER TABLE status_hourly ADD COLUMN IF NOT EXISTS hydra_v3_amps DOUBLE`,
+		`ALTER TABLE status_hourly ADD COLUMN IF NOT EXISTS hydra_vin_volts DOUBLE`,
+	}
+	for _, stmt := range alterStmts {
+		if _, err := w.db.Exec(stmt); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
-func (w *Writer) run() {
+func (w *Writer) runStatus() {
 	defer w.wg.Done()
 	flushTicker := time.NewTicker(2 * time.Second)
 	defer flushTicker.Stop()
 
 	statusBatch := make([]StatusRow, 0, 200)
-	runtimeBatch := make([]RuntimeRow, 0, 400)
 
 	flushStatus := func() {
 		if len(statusBatch) == 0 {
@@ -200,16 +258,6 @@ func (w *Writer) run() {
 			log.Println("failed to insert status batch:", err)
 		}
 		statusBatch = statusBatch[:0]
-	}
-
-	flushRuntime := func() {
-		if len(runtimeBatch) == 0 {
-			return
-		}
-		if err := w.insertRuntimeBatch(runtimeBatch); err != nil {
-			log.Println("failed to insert runtime batch:", err)
-		}
-		runtimeBatch = runtimeBatch[:0]
 	}
 
 	for {
@@ -226,7 +274,7 @@ func (w *Writer) run() {
 			}
 			if !rowHour.Equal(w.statusHourUTC) {
 				flushStatus()
-				w.flushStatusHour(w.statusHourUTC)
+				go w.flushStatusHour(w.statusHourUTC)
 				w.statusHourUTC = rowHour
 			}
 			statusBatch = append(statusBatch, row)
@@ -234,6 +282,35 @@ func (w *Writer) run() {
 				flushStatus()
 			}
 
+		case <-flushTicker.C:
+			flushStatus()
+
+		case <-w.closeCh:
+			flushStatus()
+			return
+		}
+	}
+}
+
+func (w *Writer) runRuntime() {
+	defer w.wg.Done()
+	flushTicker := time.NewTicker(100 * time.Millisecond)
+	defer flushTicker.Stop()
+
+	runtimeBatch := make([]RuntimeRow, 0, 20000)
+
+	flushRuntime := func() {
+		if len(runtimeBatch) == 0 {
+			return
+		}
+		if err := w.insertRuntimeBatch(runtimeBatch); err != nil {
+			log.Println("failed to insert runtime batch:", err)
+		}
+		runtimeBatch = runtimeBatch[:0]
+	}
+
+	for {
+		select {
 		case row := <-w.runtimeCh:
 			if row.Timestamp.IsZero() {
 				row.Timestamp = time.Now().UTC()
@@ -246,20 +323,18 @@ func (w *Writer) run() {
 			}
 			if !rowHour.Equal(w.runtimeHourUTC) {
 				flushRuntime()
-				w.flushRuntimeHour(w.runtimeHourUTC)
+				go w.flushRuntimeHour(w.runtimeHourUTC)
 				w.runtimeHourUTC = rowHour
 			}
 			runtimeBatch = append(runtimeBatch, row)
-			if len(runtimeBatch) >= 400 {
+			if len(runtimeBatch) >= 20000 {
 				flushRuntime()
 			}
 
 		case <-flushTicker.C:
-			flushStatus()
 			flushRuntime()
 
 		case <-w.closeCh:
-			flushStatus()
 			flushRuntime()
 			return
 		}
@@ -274,8 +349,10 @@ func (w *Writer) insertStatusBatch(rows []StatusRow) error {
 	stmt, err := tx.Prepare(`INSERT INTO status_hourly (
 		ts, battery12v_soc, battery12v_volts, battery12v_amps, battery12v_temp_c,
 		battery12v_temps, battery12v_status, traction_soc, traction_temp_c,
-		gps_lat, gps_lon, charger_state, charger_soc
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		gps_lat, gps_lon, charger_state, charger_soc,
+		hydra_v1_volts, hydra_v1_amps, hydra_v2_volts, hydra_v2_amps,
+		hydra_v3_volts, hydra_v3_amps, hydra_vin_volts
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		_ = tx.Rollback()
 		return err
@@ -300,6 +377,13 @@ func (w *Writer) insertStatusBatch(rows []StatusRow) error {
 			row.GPSLon,
 			row.ChargerState,
 			row.ChargerSOC,
+			row.HydraV1Volts,
+			row.HydraV1Amps,
+			row.HydraV2Volts,
+			row.HydraV2Amps,
+			row.HydraV3Volts,
+			row.HydraV3Amps,
+			row.HydraVinVolts,
 		)
 		if err != nil {
 			_ = tx.Rollback()
@@ -349,7 +433,14 @@ func (w *Writer) flushStatusHour(hour time.Time) {
 	}
 	start := hour.UTC()
 	end := start.Add(time.Hour)
-	dir := filepath.Join(w.baseDir, "status", start.Format("2006/01/02/15"))
+	dir := filepath.Join(
+		w.baseDir,
+		"status",
+		fmt.Sprintf("year=%04d", start.Year()),
+		fmt.Sprintf("month=%02d", start.Month()),
+		fmt.Sprintf("day=%02d", start.Day()),
+		fmt.Sprintf("hour=%02d", start.Hour()),
+	)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		log.Println("failed to create status parquet dir:", err)
 		return
@@ -369,7 +460,14 @@ func (w *Writer) flushRuntimeHour(hour time.Time) {
 	}
 	start := hour.UTC()
 	end := start.Add(time.Hour)
-	dir := filepath.Join(w.baseDir, "runtime", start.Format("2006/01/02/15"))
+	dir := filepath.Join(
+		w.baseDir,
+		"runtime",
+		fmt.Sprintf("year=%04d", start.Year()),
+		fmt.Sprintf("month=%02d", start.Month()),
+		fmt.Sprintf("day=%02d", start.Day()),
+		fmt.Sprintf("hour=%02d", start.Hour()),
+	)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		log.Println("failed to create runtime parquet dir:", err)
 		return
@@ -424,7 +522,82 @@ func normalizeValue(val interface{}) interface{} {
 		return string(v)
 	case time.Time:
 		return v.UTC().Format(time.RFC3339Nano)
+	case float64:
+		if math.IsNaN(v) || math.IsInf(v, 0) {
+			return nil
+		}
+		return v
+	case float32:
+		f := float64(v)
+		if math.IsNaN(f) || math.IsInf(f, 0) {
+			return nil
+		}
+		return f
 	default:
 		return v
 	}
+}
+
+func (w *Writer) ensureQueryViews(ctx context.Context, conn *sql.Conn) error {
+	runtimeParquet := filepath.Join(w.baseDir, "runtime")
+	statusParquet := filepath.Join(w.baseDir, "status")
+	hasRuntimeParquet := hasParquet(runtimeParquet)
+	hasStatusParquet := hasParquet(statusParquet)
+
+	if err := w.createHistoryView(ctx, conn, "runtime_metrics_all", "runtime_metrics", runtimeParquet, hasRuntimeParquet, "runtime.parquet"); err != nil {
+		return err
+	}
+	if err := w.createHistoryView(ctx, conn, "status_hourly_all", "status_hourly", statusParquet, hasStatusParquet, "status.parquet"); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *Writer) createHistoryView(ctx context.Context, conn *sql.Conn, viewName string, tableName string, baseDir string, hasParquet bool, fileName string) error {
+	if !hasParquet {
+		_, err := conn.ExecContext(ctx, fmt.Sprintf("CREATE OR REPLACE TEMP VIEW %s AS SELECT * FROM %s", viewName, tableName))
+		return err
+	}
+	hiveGlob := filepath.ToSlash(filepath.Join(baseDir, "year=*", "month=*", "day=*", "hour=*", fileName))
+	stmt := fmt.Sprintf(
+		`CREATE OR REPLACE TEMP VIEW %s AS
+SELECT * FROM %s
+UNION ALL SELECT * FROM read_parquet('%s', hive_partitioning=1)`,
+		viewName,
+		tableName,
+		escapePath(hiveGlob),
+	)
+	_, err := conn.ExecContext(ctx, stmt)
+	return err
+}
+
+func hasParquet(dir string) bool {
+	found := false
+	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d == nil {
+			return nil
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(d.Name(), ".parquet") {
+			found = true
+			return fs.SkipDir
+		}
+		return nil
+	})
+	return found
+}
+
+func rewriteQueryForHistory(sqlQuery string) string {
+	replacements := map[string]string{
+		"runtime_metrics": "runtime_metrics_all",
+		"status_hourly":   "status_hourly_all",
+	}
+	out := sqlQuery
+	for src, dst := range replacements {
+		re := regexp.MustCompile(`\b` + regexp.QuoteMeta(src) + `\b`)
+		out = re.ReplaceAllString(out, dst)
+	}
+	return out
 }

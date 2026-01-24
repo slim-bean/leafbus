@@ -66,6 +66,9 @@ type Handler struct {
 	streamMtx    sync.Mutex
 	statusMu     sync.Mutex
 	status       store.StatusRow
+	runtimeMin   time.Duration
+	runtimeMu    sync.Mutex
+	runtimeLast  map[string]int64
 }
 
 func (h *Handler) Follow(name string, follower *stream.Follower) {
@@ -130,6 +133,8 @@ func NewHandler(writer *store.Writer) (*Handler, error) {
 		running:      false,
 		prevLights:   0,
 		streamMap:    map[string][]*ratedFollower{},
+		runtimeMin:   10 * time.Millisecond,
+		runtimeLast:  map[string]int64{},
 	}
 	return h, nil
 }
@@ -320,6 +325,9 @@ func (h *Handler) SendMetric(metricName string, additionalLabels labels.Labels, 
 	if h.store == nil || !h.running {
 		return
 	}
+	if !h.allowRuntimeMetric(metricName, timestamp) {
+		return
+	}
 	//p := packetPool.Get().(*Packet)
 	l := labels.Label{
 		Name:  name,
@@ -347,6 +355,25 @@ func (h *Handler) SendMetric(metricName string, additionalLabels labels.Labels, 
 		Labels:    labelsString,
 		Kind:      nullString("metric"),
 	})
+}
+
+func (h *Handler) allowRuntimeMetric(name string, ts time.Time) bool {
+	if h.runtimeMin <= 0 {
+		return true
+	}
+	t := ts
+	if t.IsZero() {
+		t = time.Now()
+	}
+	nowMs := t.UnixNano() / int64(time.Millisecond)
+	h.runtimeMu.Lock()
+	defer h.runtimeMu.Unlock()
+	last, ok := h.runtimeLast[name]
+	if ok && nowMs-last < h.runtimeMin.Milliseconds() {
+		return false
+	}
+	h.runtimeLast[name] = nowMs
+	return true
 }
 
 func (h *Handler) SendLog(labels labels.Labels, timestamp time.Time, entry string) {
@@ -407,6 +434,18 @@ func (h *Handler) UpdateBattery12V(ts time.Time, soc float64, volts float64, amp
 			s.Battery12VTempC = nullFloat(sum / float64(len(temps)))
 			s.Battery12VTemps = nullString(strings.Join(parts, ","))
 		}
+	})
+}
+
+func (h *Handler) UpdateHydra(ts time.Time, v1Volts float64, v1Amps float64, v2Volts float64, v2Amps float64, v3Volts float64, v3Amps float64, vinVolts float64) {
+	h.updateStatus(ts, func(s *store.StatusRow) {
+		s.HydraV1Volts = nullFloat(v1Volts)
+		s.HydraV1Amps = nullFloat(v1Amps)
+		s.HydraV2Volts = nullFloat(v2Volts)
+		s.HydraV2Amps = nullFloat(v2Amps)
+		s.HydraV3Volts = nullFloat(v3Volts)
+		s.HydraV3Amps = nullFloat(v3Amps)
+		s.HydraVinVolts = nullFloat(vinVolts)
 	})
 }
 

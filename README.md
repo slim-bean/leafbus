@@ -33,7 +33,7 @@ So far I'm not sure it's worth it.  Also I would just get the ms4525 sensor for 
 
 ## Storage
 
-Leafbus stores data locally using DuckDB and hourly Parquet files. Run `leafbus` with `--parquet-dir` (and optionally `--duckdb-path`) to set where data is written.
+Leafbus stores data locally using DuckDB and hourly Parquet files (Hive-style partitions under `year=YYYY/month=MM/day=DD/hour=HH`). Run `leafbus` with `--parquet-dir` (and optionally `--duckdb-path`) to set where data is written.
 
 ## Cross-compiling for ARM64
 
@@ -138,7 +138,7 @@ Requires=can-setup.service
 [Service]
 Type=simple
 ExecStartPre=/bin/sleep 10
-ExecStart=/home/pi/leafbus
+ExecStart=/home/pi/leafbus -parquet-dir=/home/pi/db
 WorkingDirectory=/home/pi
 User=root
 Restart=always
@@ -194,16 +194,34 @@ $GPVTG,122.54,T,,M,0.02,N,0.04,K,D*3E
 `:x` enter to exit binary mode
 
 
-### Grafana JSON API datasource
+### Grafana Infinity datasource
 
-Use the JSON API datasource plugin and configure:
+The JSON API datasource is in maintenance mode. Use the **Infinity** datasource plugin instead.
 
-- **URL**: `http://<leafbus-host>:7777`
+Configure the Infinity datasource:
+
+- **Type**: `JSON`
+- **URL**: `http://<leafbus-host>:7777/query`
 - **HTTP Method**: `POST`
-- **Path**: `/query`
 - **Body**:
 ```json
 { "sql": "select ts, value from runtime_metrics where name = 'speed_mph' and ts >= to_timestamp(${__from}/1000) and ts <= to_timestamp(${__to}/1000) order by ts", "limit": 10000 }
+```
+- **Body Content-Type**: `application/json`
+- **Root Selector**: `rows`
+- **Columns**: 
+  - `0` as `ts` (time)
+  - `1` as `value` (number)
+
+For tables, map additional columns by index. The response format is:
+
+```json
+{
+  "columns": ["ts", "value"],
+  "rows": [
+    ["2026-01-23T22:00:00Z", 42.0]
+  ]
+}
 ```
 
 ### Example queries

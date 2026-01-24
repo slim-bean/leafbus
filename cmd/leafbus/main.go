@@ -17,7 +17,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/slim-bean/leafbus/pkg/cam"
 	"github.com/slim-bean/leafbus/pkg/charge"
 	"github.com/slim-bean/leafbus/pkg/gps"
 	"github.com/slim-bean/leafbus/pkg/hydra"
@@ -83,11 +82,11 @@ func main() {
 		log.Fatal(err)
 	}
 
-	log.Println("Creatign Cam")
-	cam, err := cam.NewCam(handler)
-	if err != nil {
-		log.Fatal(err)
-	}
+	// log.Println("Creatign Cam")
+	// cam, err := cam.NewCam(handler)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 
 	log.Println("Creating streamer")
 	strm := stream.NewStreamer(handler)
@@ -129,7 +128,7 @@ func main() {
 
 	handler.RegisterRunListener(ms)
 	handler.RegisterRunListener(gps)
-	handler.RegisterRunListener(cam)
+	//handler.RegisterRunListener(cam)
 
 	log.Println("Creating new Bus and subscribing")
 	bus0 := can.NewBus(conn0)
@@ -178,14 +177,14 @@ func main() {
 			log.Println("Starting Services from HTTP Request")
 			ms.Start()
 			gps.Start()
-			cam.Start()
+			//cam.Start()
 			writer.WriteHeader(http.StatusOK)
 			return
 		} else if strings.ToLower(run) == "false" {
 			log.Println("Stopping Services from HTTP Request")
 			ms.Stop()
 			gps.Stop()
-			cam.Stop()
+			//cam.Stop()
 			writer.WriteHeader(http.StatusOK)
 			return
 		}

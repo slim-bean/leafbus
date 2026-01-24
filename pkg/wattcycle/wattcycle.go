@@ -108,23 +108,49 @@ func (m *Monitor) run() {
 		log.Println("failed to enable bluetooth adapter:", err)
 		return
 	}
-	device, err := m.scanAndConnect()
-	if err != nil {
-		log.Println("failed to connect to wattcycle:", err)
-		return
-	}
-	defer device.Disconnect()
+	logTicker := time.NewTicker(30 * time.Second)
+	defer logTicker.Stop()
+	for {
+		select {
+		case <-m.stopCh:
+			return
+		default:
+		}
 
+		device, err := m.scanAndConnect()
+		if err != nil {
+			log.Println("failed to connect to wattcycle:", err)
+			select {
+			case <-time.After(5 * time.Second):
+				continue
+			case <-m.stopCh:
+				return
+			}
+		}
+
+		connected := m.pollDevice(device, logTicker)
+		_ = device.Disconnect()
+		if !connected {
+			select {
+			case <-time.After(5 * time.Second):
+			case <-m.stopCh:
+				return
+			}
+		}
+	}
+}
+
+func (m *Monitor) pollDevice(device bluetooth.Device, logTicker *time.Ticker) bool {
 	srvs, err := device.DiscoverServices([]bluetooth.UUID{serviceUUID})
 	if err != nil || len(srvs) == 0 {
 		log.Println("failed to discover wattcycle services:", err)
-		return
+		return false
 	}
 	service := srvs[0]
 	chars, err := service.DiscoverCharacteristics([]bluetooth.UUID{notifyUUID, writeUUID, authUUID})
 	if err != nil {
 		log.Println("failed to discover wattcycle characteristics:", err)
-		return
+		return false
 	}
 
 	var notifyChar, writeChar, authChar bluetooth.DeviceCharacteristic
@@ -141,36 +167,34 @@ func (m *Monitor) run() {
 
 	if err := notifyChar.EnableNotifications(m.notificationHandler); err != nil {
 		log.Println("failed to enable wattcycle notifications:", err)
-		return
+		return false
 	}
 	if _, err := authChar.WriteWithoutResponse(authPayload); err != nil {
 		log.Println("failed to authenticate wattcycle:", err)
-		return
+		return false
 	}
 	time.Sleep(1 * time.Second)
 
 	ticker := time.NewTicker(m.cfg.PollInterval)
 	defer ticker.Stop()
-	logTicker := time.NewTicker(30 * time.Second)
-	defer logTicker.Stop()
 	for {
 		select {
 		case <-ticker.C:
 			if _, err := writeChar.WriteWithoutResponse(cmdHeartbeat); err != nil {
 				log.Println("error writing heartbeat:", err)
-				return
+				return false
 			}
 			time.Sleep(500 * time.Millisecond)
 			if _, err := writeChar.WriteWithoutResponse(cmdGetData); err != nil {
 				log.Println("error writing data request:", err)
-				return
+				return false
 			}
 		case <-logTicker.C:
 			if st, ok := m.latestStatus(); ok {
 				log.Printf("WattCycle 12V: %.2fV (SOC %.0f%%)\n", st.Voltage, st.SOC)
 			}
 		case <-m.stopCh:
-			return
+			return true
 		}
 	}
 }

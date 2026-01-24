@@ -256,6 +256,16 @@ func (h *hydra) send() {
 				h.handler.SendMetric("v3_volts", nil, t, float64(v3Volts)/1000)
 				h.handler.SendMetric("v3_amps", nil, t, float64(v3Current)/1000)
 				h.handler.SendMetric("vin_volts", nil, t, float64(vInVolts)/1000)
+				h.handler.UpdateHydra(
+					t,
+					float64(v1Volts)/1000,
+					float64(v1Current)/1000,
+					float64(v2Volts)/1000,
+					float64(v2Current)/1000,
+					float64(v3Volts)/1000,
+					float64(v3Current)/1000,
+					float64(vInVolts)/1000,
+				)
 			} else {
 				log.Println(v1Current, v1Volts, v2Current, v2Volts, v3Current, v3Volts, vInVolts)
 			}
