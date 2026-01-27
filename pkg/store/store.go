@@ -272,7 +272,10 @@ func (w *Writer) runStatus() {
 			if w.statusHourUTC.IsZero() {
 				w.statusHourUTC = rowHour
 			}
-			if !rowHour.Equal(w.statusHourUTC) {
+			if rowHour.Before(w.statusHourUTC) {
+				log.Printf("status row hour moved backwards (row=%s current=%s ts=%s)", rowHour.Format(time.RFC3339), w.statusHourUTC.Format(time.RFC3339), row.Timestamp.Format(time.RFC3339))
+			}
+			if rowHour.After(w.statusHourUTC) {
 				flushStatus()
 				go w.flushStatusHour(w.statusHourUTC)
 				w.statusHourUTC = rowHour
@@ -321,7 +324,10 @@ func (w *Writer) runRuntime() {
 			if w.runtimeHourUTC.IsZero() {
 				w.runtimeHourUTC = rowHour
 			}
-			if !rowHour.Equal(w.runtimeHourUTC) {
+			if rowHour.Before(w.runtimeHourUTC) {
+				log.Printf("runtime row hour moved backwards (row=%s current=%s ts=%s)", rowHour.Format(time.RFC3339), w.runtimeHourUTC.Format(time.RFC3339), row.Timestamp.Format(time.RFC3339))
+			}
+			if rowHour.After(w.runtimeHourUTC) {
 				flushRuntime()
 				go w.flushRuntimeHour(w.runtimeHourUTC)
 				w.runtimeHourUTC = rowHour
@@ -445,7 +451,8 @@ func (w *Writer) flushStatusHour(hour time.Time) {
 		log.Println("failed to create status parquet dir:", err)
 		return
 	}
-	filePath := filepath.Join(dir, "status.parquet")
+	flushUnix := time.Now().UTC().UnixNano()
+	filePath := filepath.Join(dir, fmt.Sprintf("status-%d.parquet", flushUnix))
 	w.copyAndDelete(
 		"status_hourly",
 		start,
@@ -472,7 +479,8 @@ func (w *Writer) flushRuntimeHour(hour time.Time) {
 		log.Println("failed to create runtime parquet dir:", err)
 		return
 	}
-	filePath := filepath.Join(dir, "runtime.parquet")
+	flushUnix := time.Now().UTC().UnixNano()
+	filePath := filepath.Join(dir, fmt.Sprintf("runtime-%d.parquet", flushUnix))
 	w.copyAndDelete(
 		"runtime_metrics",
 		start,
@@ -485,7 +493,7 @@ func (w *Writer) copyAndDelete(table string, start, end time.Time, filePath stri
 	startLiteral := timestampLiteral(start)
 	endLiteral := timestampLiteral(end)
 	copySQL := fmt.Sprintf(
-		"copy (select * from %s where ts >= %s and ts < %s) to '%s' (format parquet, overwrite true)",
+		"copy (select * from %s where ts >= %s and ts < %s) to '%s' (format parquet, overwrite false)",
 		table,
 		startLiteral,
 		endLiteral,
@@ -544,10 +552,10 @@ func (w *Writer) ensureQueryViews(ctx context.Context, conn *sql.Conn) error {
 	hasRuntimeParquet := hasParquet(runtimeParquet)
 	hasStatusParquet := hasParquet(statusParquet)
 
-	if err := w.createHistoryView(ctx, conn, "runtime_metrics_all", "runtime_metrics", runtimeParquet, hasRuntimeParquet, "runtime.parquet"); err != nil {
+	if err := w.createHistoryView(ctx, conn, "runtime_metrics_all", "runtime_metrics", runtimeParquet, hasRuntimeParquet, "*.parquet"); err != nil {
 		return err
 	}
-	if err := w.createHistoryView(ctx, conn, "status_hourly_all", "status_hourly", statusParquet, hasStatusParquet, "status.parquet"); err != nil {
+	if err := w.createHistoryView(ctx, conn, "status_hourly_all", "status_hourly", statusParquet, hasStatusParquet, "*.parquet"); err != nil {
 		return err
 	}
 	return nil
