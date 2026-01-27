@@ -1,6 +1,6 @@
 .idea/
-leafbus
-cantest
-hydratest
-ms4525
-wattcycletest
+cmd/leafbus/leafbus
+cmd/cantest/cantest
+cmd/hydratest/hydratest
+cmd/ms4525/ms4525
+cmd/wattcycletest/wattcycletest
