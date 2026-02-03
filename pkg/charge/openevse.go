@@ -13,12 +13,15 @@ type chargeState int
 
 const (
 	unknown chargeState = iota
-	sleeping
+	ready
+	connected
 	charging
+	sleeping
+	disabled
 )
 
 func (c chargeState) String() string {
-	return [...]string{"UNKNOWN", "SLEEPING", "CHARGING"}[c]
+	return [...]string{"UNKNOWN", "READY", "CONNECTED", "CHARGING", "SLEEPING", "DISABLED"}[c]
 }
 
 func parseChargerResponse(in *response) (chargeState, error) {
@@ -32,8 +35,14 @@ func parseChargerResponse(in *response) (chargeState, error) {
 			return unknown, fmt.Errorf("response was not $OK, was: %v", parts[0])
 		}
 		switch parts[1] {
+		case "1":
+			return ready, nil
+		case "2":
+			return connected, nil
 		case "254":
 			return sleeping, nil
+		case "255":
+			return disabled, nil
 		case "3":
 			return charging, nil
 		}

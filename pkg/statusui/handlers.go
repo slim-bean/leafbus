@@ -1,4 +1,4 @@
-package heaterui
+package statusui
 
 import (
 	_ "embed"
@@ -14,18 +14,15 @@ import (
 	"github.com/slim-bean/leafbus/pkg/push"
 )
 
-//go:embed heater.html
-var heaterPage string
+//go:embed status.html
+var statusPage string
 
-type heaterControlRequest struct {
-	Mode     string `json:"mode"`
-	ManualOn *bool  `json:"manual_on"`
-}
-
-type heaterStatusResponse struct {
-	Heater  *heater.Status   `json:"heater,omitempty"`
-	Battery *batterySnapshot `json:"battery,omitempty"`
-	Error   string           `json:"error,omitempty"`
+type statusResponse struct {
+	Heater         *heater.Status          `json:"heater,omitempty"`
+	Battery        *batterySnapshot        `json:"battery,omitempty"`
+	PrimaryBattery *primaryBatterySnapshot `json:"primary_battery,omitempty"`
+	Charger        *chargerSnapshot        `json:"charger,omitempty"`
+	Error          string                  `json:"error,omitempty"`
 }
 
 type batterySnapshot struct {
@@ -43,6 +40,20 @@ type batterySnapshot struct {
 	HasStatusText bool      `json:"has_status_text"`
 }
 
+type primaryBatterySnapshot struct {
+	SOC    float64 `json:"soc"`
+	HasSOC bool    `json:"has_soc"`
+}
+
+type chargerSnapshot struct {
+	Timestamp    time.Time `json:"timestamp"`
+	State        string    `json:"state"`
+	SOC          float64   `json:"soc"`
+	HasTimestamp bool      `json:"has_timestamp"`
+	HasState     bool      `json:"has_state"`
+	HasSOC       bool      `json:"has_soc"`
+}
+
 func Register(mux *http.ServeMux, handler *push.Handler, heaterProvider func() (*heater.Controller, error)) {
 	if mux == nil {
 		mux = http.DefaultServeMux
@@ -53,85 +64,94 @@ func Register(mux *http.ServeMux, handler *push.Handler, heaterProvider func() (
 		}
 	}
 
-	mux.HandleFunc("/heater", func(writer http.ResponseWriter, request *http.Request) {
+	mux.HandleFunc("/status", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {
-			log.Printf("heater ui: invalid method %s for /heater", request.Method)
+			log.Printf("status ui: invalid method %s for /status", request.Method)
 			writer.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
 		writer.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = writer.Write([]byte(heaterPage))
+		_, _ = writer.Write([]byte(statusPage))
 	})
 
-	mux.HandleFunc("/heater/status", func(writer http.ResponseWriter, request *http.Request) {
+	mux.HandleFunc("/status/data", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {
-			log.Printf("heater ui: invalid method %s for /heater/status", request.Method)
+			log.Printf("status ui: invalid method %s for /status/data", request.Method)
 			writer.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
 		heaterCtrl, err := heaterProvider()
 		if err != nil || heaterCtrl == nil {
-			log.Println("heater ui: heater controller not available for /heater/status:", err)
+			log.Println("status ui: heater controller not available for /status/data:", err)
 			writer.WriteHeader(http.StatusServiceUnavailable)
-			_ = json.NewEncoder(writer).Encode(heaterStatusResponse{
+			_ = json.NewEncoder(writer).Encode(statusResponse{
 				Error: "heater controller not available",
 			})
 			return
 		}
-		resp := heaterStatusResponse{
-			Heater:  ptrHeaterStatus(heaterCtrl.Status()),
-			Battery: buildBatterySnapshot(handler),
+		resp := statusResponse{
+			Heater:         ptrHeaterStatus(heaterCtrl.Status()),
+			Battery:        buildBatterySnapshot(handler),
+			PrimaryBattery: buildPrimaryBatterySnapshot(handler),
+			Charger:        buildChargerSnapshot(handler),
 		}
 		writer.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(writer).Encode(resp); err != nil {
-			log.Println("heater ui: failed to write heater status response:", err)
+			log.Println("status ui: failed to write status response:", err)
 		}
 	})
 
-	mux.HandleFunc("/heater/control", func(writer http.ResponseWriter, request *http.Request) {
+	mux.HandleFunc("/status/control", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost {
-			log.Printf("heater ui: invalid method %s for /heater/control", request.Method)
+			log.Printf("status ui: invalid method %s for /status/control", request.Method)
 			writer.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
 		heaterCtrl, err := heaterProvider()
 		if err != nil || heaterCtrl == nil {
-			log.Println("heater ui: heater controller not available for /heater/control:", err)
+			log.Println("status ui: heater controller not available for /status/control:", err)
 			writer.WriteHeader(http.StatusServiceUnavailable)
-			_ = json.NewEncoder(writer).Encode(heaterStatusResponse{
+			_ = json.NewEncoder(writer).Encode(statusResponse{
 				Error: "heater controller not available",
 			})
 			return
 		}
 		var payload heaterControlRequest
 		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-			log.Println("heater ui: invalid control payload:", err)
+			log.Println("status ui: invalid control payload:", err)
 			http.Error(writer, "invalid JSON body", http.StatusBadRequest)
 			return
 		}
 		if payload.Mode != "" {
 			if err := heaterCtrl.SetMode(payload.Mode); err != nil {
-				log.Println("heater ui: failed to set heater mode:", err)
+				log.Println("status ui: failed to set heater mode:", err)
 				http.Error(writer, err.Error(), http.StatusBadRequest)
 				return
 			}
 		}
 		if payload.ManualOn != nil {
 			if err := heaterCtrl.SetManualOn(*payload.ManualOn); err != nil {
-				log.Println("heater ui: failed to set manual heater state:", err)
+				log.Println("status ui: failed to set manual heater state:", err)
 				http.Error(writer, err.Error(), http.StatusBadRequest)
 				return
 			}
 		}
-		resp := heaterStatusResponse{
-			Heater:  ptrHeaterStatus(heaterCtrl.Status()),
-			Battery: buildBatterySnapshot(handler),
+		resp := statusResponse{
+			Heater:         ptrHeaterStatus(heaterCtrl.Status()),
+			Battery:        buildBatterySnapshot(handler),
+			PrimaryBattery: buildPrimaryBatterySnapshot(handler),
+			Charger:        buildChargerSnapshot(handler),
 		}
 		writer.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(writer).Encode(resp); err != nil {
-			log.Println("heater ui: failed to write control response:", err)
+			log.Println("status ui: failed to write control response:", err)
 		}
 	})
+}
+
+type heaterControlRequest struct {
+	Mode     string `json:"mode"`
+	ManualOn *bool  `json:"manual_on"`
 }
 
 func buildBatterySnapshot(handler *push.Handler) *batterySnapshot {
@@ -169,6 +189,50 @@ func buildBatterySnapshot(handler *push.Handler) *batterySnapshot {
 		snap.HasStatusText = true
 	}
 	return snap
+}
+
+func buildPrimaryBatterySnapshot(handler *push.Handler) *primaryBatterySnapshot {
+	if handler == nil {
+		return nil
+	}
+	st, ok := handler.LatestStatus()
+	if !ok || !st.TractionSOC.Valid {
+		return nil
+	}
+	return &primaryBatterySnapshot{
+		SOC:    st.TractionSOC.Float64,
+		HasSOC: true,
+	}
+}
+
+func buildChargerSnapshot(handler *push.Handler) *chargerSnapshot {
+	if handler == nil {
+		return nil
+	}
+	st, ok := handler.LatestStatus()
+	if !ok {
+		return nil
+	}
+	charger := &chargerSnapshot{}
+	hasData := false
+	if st.ChargerState.Valid {
+		charger.State = st.ChargerState.String
+		charger.HasState = true
+		hasData = true
+	}
+	if st.ChargerSOC.Valid {
+		charger.SOC = st.ChargerSOC.Float64
+		charger.HasSOC = true
+		hasData = true
+	}
+	if hasData {
+		charger.Timestamp = st.Timestamp
+		charger.HasTimestamp = true
+	}
+	if !hasData {
+		return nil
+	}
+	return charger
 }
 
 func parseTemps(raw string) []float64 {

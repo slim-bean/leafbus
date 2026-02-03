@@ -22,10 +22,10 @@ import (
 	"github.com/slim-bean/leafbus/pkg/charge"
 	"github.com/slim-bean/leafbus/pkg/gps"
 	"github.com/slim-bean/leafbus/pkg/heater"
-	"github.com/slim-bean/leafbus/pkg/heaterui"
 	"github.com/slim-bean/leafbus/pkg/hydra"
 	"github.com/slim-bean/leafbus/pkg/ms4525"
 	"github.com/slim-bean/leafbus/pkg/push"
+	"github.com/slim-bean/leafbus/pkg/statusui"
 	"github.com/slim-bean/leafbus/pkg/store"
 	"github.com/slim-bean/leafbus/pkg/stream"
 	"github.com/slim-bean/leafbus/pkg/wattcycle"
@@ -200,7 +200,7 @@ func main() {
 			log.Println("failed to write query response:", err)
 		}
 	})
-	heaterui.Register(http.DefaultServeMux, handler, func() (*heater.Controller, error) {
+	statusui.Register(http.DefaultServeMux, handler, func() (*heater.Controller, error) {
 		if heaterCtrl != nil {
 			return heaterCtrl, nil
 		}

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Battery Heater</title>
+  <title>Status</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 24px; }
     .row { margin: 8px 0; }
@@ -12,7 +12,7 @@
   </style>
 </head>
 <body>
-  <h2>Battery Heater</h2>
+  <h2>Status</h2>
   <div class="card">
     <div class="row">
       <label class="label" for="autoMode">Auto Mode</label>
@@ -22,13 +22,15 @@
       <label class="label" for="manualOn">Manual Heater</label>
       <input type="checkbox" id="manualOn">
     </div>
+    <div class="row"><span class="label">Heater Mode</span><span id="heaterMode">--</span></div>
     <div class="row"><span class="label">Heater Output</span><span id="heaterState">--</span></div>
+    <div class="row"><span class="label">Manual Heater</span><span id="heaterManual">--</span></div>
     <div class="row"><span class="label">Min Temp</span><span id="minTemp">--</span></div>
     <div class="row"><span class="label">Temps</span><span id="temps">--</span></div>
     <div class="row"><span class="label">Last Update</span><span id="lastUpdate">--</span></div>
   </div>
 
-  <h3>Battery Stats</h3>
+  <h3>12V Battery</h3>
   <div class="card">
     <div class="row"><span class="label">SOC</span><span id="soc">--</span></div>
     <div class="row"><span class="label">Voltage</span><span id="volts">--</span></div>
@@ -38,12 +40,23 @@
     <div class="row"><span class="label">Timestamp</span><span id="batteryTs">--</span></div>
   </div>
 
+  <h3>Primary Battery</h3>
+  <div class="card">
+    <div class="row"><span class="label">SOC</span><span id="primarySoc">--</span></div>
+  </div>
+
+  <h3>OpenEVSE Charger</h3>
+  <div class="card">
+    <div class="row"><span class="label">State</span><span id="chargerState">--</span></div>
+    <div class="row"><span class="label">SOC</span><span id="chargerSoc">--</span></div>
+    <div class="row"><span class="label">Last Update</span><span id="chargerTs">--</span></div>
+  </div>
+
   <script>
+    const statusUrl = new URL('/status/data', window.location.origin);
+    const controlUrl = new URL('/status/control', window.location.origin);
     const autoMode = document.getElementById('autoMode');
     const manualOn = document.getElementById('manualOn');
-
-    const statusUrl = new URL('/heater/status', window.location.origin);
-    const controlUrl = new URL('/heater/control', window.location.origin);
 
     function setText(id, value) {
       const el = document.getElementById(id);
@@ -60,8 +73,9 @@
       autoMode.checked = isAuto;
       manualOn.disabled = isAuto;
       manualOn.checked = heater.manual_on;
-
+      setText('heaterMode', heater.mode ? heater.mode : '--');
       setText('heaterState', heater.on ? 'ON' : 'OFF');
+      setText('heaterManual', heater.manual_on ? 'ON' : 'OFF');
       if (heater.min_temp_c === null || heater.min_temp_c === undefined) {
         setText('minTemp', '--');
       } else {
@@ -91,6 +105,22 @@
       setText('batteryTs', battery.timestamp ? battery.timestamp : '--');
     }
 
+    function renderPrimaryBattery(primaryBattery) {
+      if (!primaryBattery) {
+        return;
+      }
+      setText('primarySoc', primaryBattery.has_soc ? primaryBattery.soc.toFixed(1) + ' %' : '--');
+    }
+
+    function renderCharger(charger) {
+      if (!charger) {
+        return;
+      }
+      setText('chargerState', charger.has_state ? charger.state : '--');
+      setText('chargerSoc', charger.has_soc ? charger.soc.toFixed(1) + ' %' : '--');
+      setText('chargerTs', charger.has_timestamp ? charger.timestamp : '--');
+    }
+
     async function refresh() {
       try {
         const res = await fetch(statusUrl.toString(), { cache: 'no-store' });
@@ -101,6 +131,8 @@
         }
         renderHeater(data.heater);
         renderBattery(data.battery);
+        renderPrimaryBattery(data.primary_battery);
+        renderCharger(data.charger);
       } catch (err) {
         setText('heaterState', 'error loading status');
       }
