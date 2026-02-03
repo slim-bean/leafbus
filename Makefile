@@ -11,6 +11,15 @@ arm:
 send: arm
 	scp cmd/leafbus/leafbus pi@leaf.edjusted.com:
 
+deploy: arm
+	@echo "Stopping leafbus service..."
+	ssh pi@leaf.edjusted.com 'sudo systemctl stop leafbus'
+	@echo "Sending binary..."
+	scp cmd/leafbus/leafbus pi@leaf.edjusted.com:
+	@echo "Starting leafbus service..."
+	ssh pi@leaf.edjusted.com 'sudo systemctl start leafbus'
+	@echo "Deployment complete!"
+
 can:
 	env GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags '-extldflags "-static"' -o cmd/cantest/cantest ./cmd/cantest/main.go
 send-can: can

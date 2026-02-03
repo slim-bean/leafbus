@@ -592,7 +592,7 @@ func (w *Writer) createHistoryView(ctx context.Context, conn *sql.Conn, viewName
 	stmt := fmt.Sprintf(
 		`CREATE OR REPLACE TEMP VIEW %s AS
 SELECT * FROM %s
-UNION ALL SELECT * FROM read_parquet('%s', hive_partitioning=1, union_by_name=true)`,
+UNION ALL BY NAME SELECT * FROM read_parquet('%s', hive_partitioning=1, union_by_name=true)`,
 		viewName,
 		tableName,
 		escapePath(hiveGlob),

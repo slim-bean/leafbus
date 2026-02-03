@@ -1,0 +1,33 @@
+### Send SQL Query (raw SQL body)
+POST http://leaf.edjusted.com:7777/query?limit=10000
+Content-Type: text/plain
+
+select ts,heater_on from status_hourly order by ts desc
+
+### Send SQL Query (JSON payload)
+POST http://leaf.edjusted.com:7777/query
+Content-Type: application/json
+
+{
+  "sql": "select ts,heater_on from status_hourly order by ts desc",
+  "limit": 10000
+}
+
+### Send SQL Query (raw SQL body)
+POST http://leaf.edjusted.com:7777/query?limit=10000
+Content-Type: text/plain
+
+SELECT
+  ts,
+  'Heater Enabled' as title,
+  heater_on
+FROM (
+  SELECT
+    ts,
+    heater_on,
+    -- Get the value of 'heater_on' from the previous row
+    LAG(heater_on) OVER (ORDER BY ts) as prev_heater_on
+  FROM status_hourly
+) subquery
+WHERE heater_on <> prev_heater_on -- Keep only rows where the value is different
+ORDER BY ts DESC

@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"time"
 
@@ -171,30 +173,26 @@ func main() {
 	log.Println("Starting web server")
 	http.HandleFunc("/stream", strm.Handler)
 	http.HandleFunc("/query", func(response http.ResponseWriter, request *http.Request) {
-		if request.Method != http.MethodPost {
-			response.WriteHeader(http.StatusMethodNotAllowed)
+		sqlQuery, limit, err := parseQueryRequest(request)
+		if err != nil {
+			writeQueryError(response, http.StatusBadRequest, err.Error(), sqlQuery)
 			return
 		}
-		var payload queryRequest
-		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-			http.Error(response, "invalid JSON body", http.StatusBadRequest)
+		sqlQuery = strings.TrimSpace(sqlQuery)
+		if sqlQuery == "" {
+			writeQueryError(response, http.StatusBadRequest, "sql is required", sqlQuery)
 			return
 		}
-		payload.SQL = strings.TrimSpace(payload.SQL)
-		if payload.SQL == "" {
-			http.Error(response, "sql is required", http.StatusBadRequest)
+		if !isQueryAllowed(sqlQuery) {
+			writeQueryError(response, http.StatusBadRequest, "only SELECT/WITH queries are allowed", sqlQuery)
 			return
 		}
-		if !isQueryAllowed(payload.SQL) {
-			http.Error(response, "only SELECT/WITH queries are allowed", http.StatusBadRequest)
-			return
-		}
-		sqlQuery := applyLimit(payload.SQL, payload.Limit)
+		sqlQuery = applyLimit(sqlQuery, limit)
 		ctx, cancel := context.WithTimeout(request.Context(), 5*time.Second)
 		defer cancel()
 		result, err := writer.Query(ctx, sqlQuery)
 		if err != nil {
-			http.Error(response, fmt.Sprintf("query failed: %v", err), http.StatusBadRequest)
+			writeQueryError(response, http.StatusBadRequest, fmt.Sprintf("query failed: %v", err), sqlQuery)
 			return
 		}
 		response.Header().Set("Content-Type", "application/json")
@@ -279,12 +277,83 @@ type queryRequest struct {
 	Limit int    `json:"limit"`
 }
 
+type queryErrorResponse struct {
+	Error string `json:"error"`
+	SQL   string `json:"sql,omitempty"`
+}
+
+func writeQueryError(response http.ResponseWriter, status int, message string, sql string) {
+	response.Header().Set("Content-Type", "application/json")
+	response.WriteHeader(status)
+	_ = json.NewEncoder(response).Encode(queryErrorResponse{
+		Error: message,
+		SQL:   strings.TrimSpace(sql),
+	})
+}
+
+func parseQueryRequest(request *http.Request) (string, int, error) {
+	sqlQuery := strings.TrimSpace(request.URL.Query().Get("sql"))
+	limit, err := parseQueryLimit(request)
+	if err != nil {
+		return sqlQuery, 0, err
+	}
+	if sqlQuery != "" {
+		return sqlQuery, limit, nil
+	}
+	if request.Method != http.MethodPost {
+		return "", 0, fmt.Errorf("use POST with JSON or text body, or provide ?sql=")
+	}
+	contentType := request.Header.Get("Content-Type")
+	if strings.Contains(contentType, "application/json") {
+		var payload queryRequest
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			return "", 0, fmt.Errorf("invalid JSON body")
+		}
+		payload.SQL = strings.TrimSpace(payload.SQL)
+		if limit <= 0 {
+			limit = payload.Limit
+		}
+		return payload.SQL, limit, nil
+	}
+	body, err := io.ReadAll(request.Body)
+	if err != nil {
+		return "", 0, fmt.Errorf("failed to read request body")
+	}
+	return strings.TrimSpace(string(body)), limit, nil
+}
+
+func parseQueryLimit(request *http.Request) (int, error) {
+	limitRaw := strings.TrimSpace(request.URL.Query().Get("limit"))
+	if limitRaw == "" {
+		return 0, nil
+	}
+	limit, err := strconv.Atoi(limitRaw)
+	if err != nil {
+		return 0, fmt.Errorf("limit must be an integer")
+	}
+	if limit < 0 {
+		return 0, fmt.Errorf("limit must be >= 0")
+	}
+	return limit, nil
+}
+
 func isQueryAllowed(sql string) bool {
-	if strings.Contains(sql, ";") {
+	normalized := strings.TrimSpace(strings.ToLower(sql))
+	if strings.Contains(normalized, ";") {
 		return false
 	}
-	normalized := strings.TrimSpace(strings.ToLower(sql))
-	return strings.HasPrefix(normalized, "select ") || strings.HasPrefix(normalized, "with ")
+	return hasSQLPrefix(normalized, "select") || hasSQLPrefix(normalized, "with")
+}
+
+func hasSQLPrefix(sql string, keyword string) bool {
+	if !strings.HasPrefix(sql, keyword) {
+		return false
+	}
+	if len(sql) == len(keyword) {
+		return true
+	}
+	next := sql[len(keyword)]
+	return next == ' ' || next == '\n' || next == '\t' || next == '\r'
 }
 
 func applyLimit(sql string, limit int) string {
