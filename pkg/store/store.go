@@ -110,6 +110,7 @@ func NewWriter(baseDir string, dbPath string) (*Writer, error) {
 func (w *Writer) Query(ctx context.Context, sqlQuery string) (*QueryResult, error) {
 	conn, err := w.db.Conn(ctx)
 	if err != nil {
+		log.Printf("query error: failed to get database connection: %v (query=%q)", err, sqlQuery)
 		return nil, err
 	}
 	defer func() {
@@ -118,11 +119,13 @@ func (w *Writer) Query(ctx context.Context, sqlQuery string) (*QueryResult, erro
 		}
 	}()
 	if err := w.ensureQueryViews(ctx, conn); err != nil {
+		log.Printf("query error: failed to ensure query views: %v (query=%q)", err, sqlQuery)
 		return nil, err
 	}
 	query := rewriteQueryForHistory(sqlQuery)
 	rows, err := conn.QueryContext(ctx, query)
 	if err != nil {
+		log.Printf("query error: failed to execute query: %v (original=%q, rewritten=%q)", err, sqlQuery, query)
 		return nil, err
 	}
 	defer func() {
@@ -132,6 +135,7 @@ func (w *Writer) Query(ctx context.Context, sqlQuery string) (*QueryResult, erro
 	}()
 	cols, err := rows.Columns()
 	if err != nil {
+		log.Printf("query error: failed to get columns: %v (query=%q)", err, sqlQuery)
 		return nil, err
 	}
 	result := &QueryResult{
@@ -145,6 +149,7 @@ func (w *Writer) Query(ctx context.Context, sqlQuery string) (*QueryResult, erro
 			scanTargets[i] = &values[i]
 		}
 		if err := rows.Scan(scanTargets...); err != nil {
+			log.Printf("query error: failed to scan row: %v (query=%q)", err, sqlQuery)
 			return nil, err
 		}
 		for i, v := range values {
@@ -153,6 +158,7 @@ func (w *Writer) Query(ctx context.Context, sqlQuery string) (*QueryResult, erro
 		result.Rows = append(result.Rows, values)
 	}
 	if err := rows.Err(); err != nil {
+		log.Printf("query error: rows error: %v (query=%q)", err, sqlQuery)
 		return nil, err
 	}
 	return result, nil
@@ -585,12 +591,10 @@ func (w *Writer) createHistoryView(ctx context.Context, conn *sql.Conn, viewName
 	hiveGlob := filepath.ToSlash(filepath.Join(baseDir, "year=*", "month=*", "day=*", "hour=*", fileName))
 	stmt := fmt.Sprintf(
 		`CREATE OR REPLACE TEMP VIEW %s AS
-SELECT %s FROM %s
-UNION ALL SELECT %s FROM read_parquet('%s', hive_partitioning=1, union_by_name=true)`,
+SELECT * FROM %s
+UNION ALL SELECT * FROM read_parquet('%s', hive_partitioning=1, union_by_name=true)`,
 		viewName,
-		columnListForTable(tableName),
 		tableName,
-		columnListForTable(tableName),
 		escapePath(hiveGlob),
 	)
 	_, err := conn.ExecContext(ctx, stmt)
