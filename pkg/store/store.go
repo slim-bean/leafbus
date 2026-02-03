@@ -29,6 +29,10 @@ type StatusRow struct {
 	Battery12VTempC  sql.NullFloat64
 	Battery12VTemps  sql.NullString
 	Battery12VStatus sql.NullString
+	HeaterMode       sql.NullString
+	HeaterOn         sql.NullBool
+	HeaterManualOn   sql.NullBool
+	HeaterMinTempC   sql.NullFloat64
 	TractionSOC      sql.NullFloat64
 	TractionTempC    sql.NullFloat64
 	GPSLat           sql.NullFloat64
@@ -198,6 +202,10 @@ func (w *Writer) initSchema() error {
 			battery12v_temp_c DOUBLE,
 			battery12v_temps VARCHAR,
 			battery12v_status VARCHAR,
+			heater_mode VARCHAR,
+			heater_on BOOLEAN,
+			heater_manual_on BOOLEAN,
+			heater_min_temp_c DOUBLE,
 			traction_soc DOUBLE,
 			traction_temp_c DOUBLE,
 			gps_lat DOUBLE,
@@ -234,6 +242,10 @@ func (w *Writer) initSchema() error {
 		`ALTER TABLE status_hourly ADD COLUMN IF NOT EXISTS hydra_v3_volts DOUBLE`,
 		`ALTER TABLE status_hourly ADD COLUMN IF NOT EXISTS hydra_v3_amps DOUBLE`,
 		`ALTER TABLE status_hourly ADD COLUMN IF NOT EXISTS hydra_vin_volts DOUBLE`,
+		`ALTER TABLE status_hourly ADD COLUMN IF NOT EXISTS heater_mode VARCHAR`,
+		`ALTER TABLE status_hourly ADD COLUMN IF NOT EXISTS heater_on BOOLEAN`,
+		`ALTER TABLE status_hourly ADD COLUMN IF NOT EXISTS heater_manual_on BOOLEAN`,
+		`ALTER TABLE status_hourly ADD COLUMN IF NOT EXISTS heater_min_temp_c DOUBLE`,
 	}
 	for _, stmt := range alterStmts {
 		if _, err := w.db.Exec(stmt); err != nil {
@@ -354,11 +366,11 @@ func (w *Writer) insertStatusBatch(rows []StatusRow) error {
 	}
 	stmt, err := tx.Prepare(`INSERT INTO status_hourly (
 		ts, battery12v_soc, battery12v_volts, battery12v_amps, battery12v_temp_c,
-		battery12v_temps, battery12v_status, traction_soc, traction_temp_c,
-		gps_lat, gps_lon, charger_state, charger_soc,
+		battery12v_temps, battery12v_status, heater_mode, heater_on, heater_manual_on, heater_min_temp_c,
+		traction_soc, traction_temp_c, gps_lat, gps_lon, charger_state, charger_soc,
 		hydra_v1_volts, hydra_v1_amps, hydra_v2_volts, hydra_v2_amps,
 		hydra_v3_volts, hydra_v3_amps, hydra_vin_volts
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		_ = tx.Rollback()
 		return err
@@ -377,6 +389,10 @@ func (w *Writer) insertStatusBatch(rows []StatusRow) error {
 			row.Battery12VTempC,
 			row.Battery12VTemps,
 			row.Battery12VStatus,
+			row.HeaterMode,
+			row.HeaterOn,
+			row.HeaterManualOn,
+			row.HeaterMinTempC,
 			row.TractionSOC,
 			row.TractionTempC,
 			row.GPSLat,
@@ -631,6 +647,10 @@ var statusColumns = []string{
 	"battery12v_temp_c",
 	"battery12v_temps",
 	"battery12v_status",
+	"heater_mode",
+	"heater_on",
+	"heater_manual_on",
+	"heater_min_temp_c",
 	"traction_soc",
 	"traction_temp_c",
 	"gps_lat",

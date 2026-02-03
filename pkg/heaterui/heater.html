@@ -65,12 +65,12 @@
       if (heater.min_temp_c === null || heater.min_temp_c === undefined) {
         setText('minTemp', '--');
       } else {
-        setText('minTemp', heater.min_temp_c.toFixed(1) + ' C');
+        setText('minTemp', ((heater.min_temp_c * 9 / 5) + 32).toFixed(1) + ' F');
       }
       if (!heater.temps_c || heater.temps_c.length === 0) {
         setText('temps', '--');
       } else {
-        setText('temps', heater.temps_c.map(t => t.toFixed(1)).join(', ') + ' C');
+        setText('temps', heater.temps_c.map(t => ((t * 9 / 5) + 32).toFixed(1)).join(', ') + ' F');
       }
       if (!heater.last_update_at) {
         setText('lastUpdate', '--');
@@ -86,7 +86,7 @@
       setText('soc', battery.has_soc ? battery.soc.toFixed(1) + ' %' : '--');
       setText('volts', battery.has_voltage ? battery.volts.toFixed(2) + ' V' : '--');
       setText('amps', battery.has_current ? battery.amps.toFixed(2) + ' A' : '--');
-      setText('temp', battery.has_temps ? battery.temp_c.toFixed(1) + ' C' : '--');
+      setText('temp', battery.has_temps ? ((battery.temp_c * 9 / 5) + 32).toFixed(1) + ' F' : '--');
       setText('status', battery.has_status_text ? battery.status : '--');
       setText('batteryTs', battery.timestamp ? battery.timestamp : '--');
     }

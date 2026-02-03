@@ -437,6 +437,17 @@ func (h *Handler) UpdateBattery12V(ts time.Time, soc float64, volts float64, amp
 	})
 }
 
+func (h *Handler) UpdateHeater(ts time.Time, mode string, on bool, manualOn bool, minTempC *float64) {
+	h.updateStatus(ts, func(s *store.StatusRow) {
+		s.HeaterMode = nullString(mode)
+		s.HeaterOn = nullBool(on)
+		s.HeaterManualOn = nullBool(manualOn)
+		if minTempC != nil {
+			s.HeaterMinTempC = nullFloat(*minTempC)
+		}
+	})
+}
+
 func (h *Handler) UpdateHydra(ts time.Time, v1Volts float64, v1Amps float64, v2Volts float64, v2Amps float64, v3Volts float64, v3Amps float64, vinVolts float64) {
 	h.updateStatus(ts, func(s *store.StatusRow) {
 		s.HydraV1Volts = nullFloat(v1Volts)
@@ -510,6 +521,13 @@ func nullString(val string) sql.NullString {
 	return sql.NullString{
 		String: val,
 		Valid:  true,
+	}
+}
+
+func nullBool(val bool) sql.NullBool {
+	return sql.NullBool{
+		Bool:  val,
+		Valid: true,
 	}
 }
 

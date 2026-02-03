@@ -35,8 +35,8 @@ func main() {
 	wattcycleAddress := flag.String("wattcycle-address", wattcycle.DefaultAddress, "BLE address for the WattCycle 12V battery")
 	heaterEnabled := flag.Bool("heater", true, "Enable battery heater control")
 	heaterGPIO := flag.Int("heater-gpio", 17, "GPIO pin (BCM) for battery heater")
-	heaterOnBelow := flag.Float64("heater-on-below", 0.0, "Heater ON when min temp <= value (C)")
-	heaterOffAbove := flag.Float64("heater-off-above", 2.0, "Heater OFF when min temp >= value (C)")
+	heaterOnBelow := flag.Float64("heater-on-below", 35.0, "Heater ON when min temp <= value (F)")
+	heaterOffAbove := flag.Float64("heater-off-above", 37.0, "Heater OFF when min temp >= value (F)")
 	heaterActiveHigh := flag.Bool("heater-active-high", true, "Set GPIO high to turn heater on")
 	flag.Parse()
 
@@ -131,15 +131,15 @@ func main() {
 				activeHigh := *heaterActiveHigh
 				heaterCtrl, err = heater.NewController(heater.Config{
 					GPIO:       *heaterGPIO,
-					OnBelowC:   *heaterOnBelow,
-					OffAboveC:  *heaterOffAbove,
+					OnBelowC:   fToC(*heaterOnBelow),
+					OffAboveC:  fToC(*heaterOffAbove),
 					ActiveHigh: &activeHigh,
 				})
 				if err != nil {
 					heaterCtrlErr = err
 					log.Println("Failed to create heater controller:", err)
 				} else {
-					log.Printf("Heater controller active (GPIO %d, on<=%.1fC, off>=%.1fC)\n", *heaterGPIO, *heaterOnBelow, *heaterOffAbove)
+					log.Printf("Heater controller active (GPIO %d, on<=%.1fF, off>=%.1fF)\n", *heaterGPIO, *heaterOnBelow, *heaterOffAbove)
 				}
 			} else {
 				heaterCtrlErr = fmt.Errorf("heater disabled (enable with -heater)")
@@ -149,6 +149,8 @@ func main() {
 					handler.UpdateBattery12V(st.Timestamp, st.SOC, st.Voltage, st.Current, st.TempsC, st.Status)
 					if heaterCtrl != nil {
 						heaterCtrl.UpdateTemps(st.TempsC)
+						heaterStatus := heaterCtrl.Status()
+						handler.UpdateHeater(st.Timestamp, heaterStatus.Mode, heaterStatus.On, heaterStatus.ManualOn, heaterStatus.MinTempC)
 					}
 				}
 			}()
@@ -294,6 +296,10 @@ func applyLimit(sql string, limit int) string {
 		return sql
 	}
 	return fmt.Sprintf("%s limit %d", strings.TrimSpace(sql), limit)
+}
+
+func fToC(tempF float64) float64 {
+	return (tempF - 32.0) * 5.0 / 9.0
 }
 
 // logCANFrame logs a frame with the same format as candump from can-utils.

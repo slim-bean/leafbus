@@ -41,7 +41,7 @@ type Controller struct {
 func NewController(cfg Config) (*Controller, error) {
 	applyDefaults(&cfg)
 	if cfg.OffAboveC < cfg.OnBelowC {
-		return nil, fmt.Errorf("heater off threshold %.2fC must be >= on threshold %.2fC", cfg.OffAboveC, cfg.OnBelowC)
+		return nil, fmt.Errorf("heater off threshold %.2fF must be >= on threshold %.2fF", cfg.OffAboveC, cfg.OnBelowC)
 	}
 
 	gpio, err := newSysfsGPIO(cfg.GPIO, derefBool(cfg.ActiveHigh, true), cfg.ExportRetryCount)
@@ -99,9 +99,9 @@ func (c *Controller) UpdateTemps(temps []float64) {
 	}
 	c.on = desired
 	if desired {
-		log.Printf("Heater ON (mode=auto, min temp %.1fC)\n", minTemp)
+		log.Printf("Heater ON (mode=auto, min temp %.1fC/%.1fF)\n", minTemp, cToF(minTemp))
 	} else {
-		log.Printf("Heater OFF (mode=auto, min temp %.1fC)\n", minTemp)
+		log.Printf("Heater OFF (mode=auto, min temp %.1fC/%.1fF)\n", minTemp, cToF(minTemp))
 	}
 }
 
@@ -276,6 +276,10 @@ func onOffLabel(on bool) string {
 		return "ON"
 	}
 	return "OFF"
+}
+
+func cToF(tempC float64) float64 {
+	return (tempC * 9.0 / 5.0) + 32.0
 }
 
 func exportGPIO(base string, pin int, retries int) (int, string, error) {
