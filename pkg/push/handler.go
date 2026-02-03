@@ -449,6 +449,15 @@ func (h *Handler) UpdateHydra(ts time.Time, v1Volts float64, v1Amps float64, v2V
 	})
 }
 
+func (h *Handler) LatestStatus() (store.StatusRow, bool) {
+	h.statusMu.Lock()
+	defer h.statusMu.Unlock()
+	if h.status.Timestamp.IsZero() {
+		return store.StatusRow{}, false
+	}
+	return h.status, true
+}
+
 func (h *Handler) updateStatus(ts time.Time, updater func(*store.StatusRow)) {
 	if h.store == nil {
 		return

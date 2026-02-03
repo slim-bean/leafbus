@@ -19,6 +19,8 @@ import (
 
 	"github.com/slim-bean/leafbus/pkg/charge"
 	"github.com/slim-bean/leafbus/pkg/gps"
+	"github.com/slim-bean/leafbus/pkg/heater"
+	"github.com/slim-bean/leafbus/pkg/heaterui"
 	"github.com/slim-bean/leafbus/pkg/hydra"
 	"github.com/slim-bean/leafbus/pkg/ms4525"
 	"github.com/slim-bean/leafbus/pkg/push"
@@ -31,6 +33,11 @@ func main() {
 	parquetDir := flag.String("parquet-dir", "", "Base directory for parquet output (required)")
 	duckdbPath := flag.String("duckdb-path", "", "Optional path to the duckdb database file")
 	wattcycleAddress := flag.String("wattcycle-address", wattcycle.DefaultAddress, "BLE address for the WattCycle 12V battery")
+	heaterEnabled := flag.Bool("heater", true, "Enable battery heater control")
+	heaterGPIO := flag.Int("heater-gpio", 17, "GPIO pin (BCM) for battery heater")
+	heaterOnBelow := flag.Float64("heater-on-below", 0.0, "Heater ON when min temp <= value (C)")
+	heaterOffAbove := flag.Float64("heater-off-above", 2.0, "Heater OFF when min temp >= value (C)")
+	heaterActiveHigh := flag.Bool("heater-active-high", true, "Set GPIO high to turn heater on")
 	flag.Parse()
 
 	log.Println("Finding interface can0")
@@ -112,15 +119,37 @@ func main() {
 	wattMonitor, err := wattcycle.NewMonitor(wattcycle.Config{
 		Address: *wattcycleAddress,
 	})
+	var heaterCtrl *heater.Controller
+	var heaterCtrlErr error
 	if err != nil {
 		log.Println("Failed to create WattCycle monitor:", err)
 	} else {
 		if err := wattMonitor.Start(); err != nil {
 			log.Println("Failed to start WattCycle monitor:", err)
 		} else {
+			if *heaterEnabled {
+				activeHigh := *heaterActiveHigh
+				heaterCtrl, err = heater.NewController(heater.Config{
+					GPIO:       *heaterGPIO,
+					OnBelowC:   *heaterOnBelow,
+					OffAboveC:  *heaterOffAbove,
+					ActiveHigh: &activeHigh,
+				})
+				if err != nil {
+					heaterCtrlErr = err
+					log.Println("Failed to create heater controller:", err)
+				} else {
+					log.Printf("Heater controller active (GPIO %d, on<=%.1fC, off>=%.1fC)\n", *heaterGPIO, *heaterOnBelow, *heaterOffAbove)
+				}
+			} else {
+				heaterCtrlErr = fmt.Errorf("heater disabled (enable with -heater)")
+			}
 			go func() {
 				for st := range wattMonitor.Statuses() {
 					handler.UpdateBattery12V(st.Timestamp, st.SOC, st.Voltage, st.Current, st.TempsC, st.Status)
+					if heaterCtrl != nil {
+						heaterCtrl.UpdateTemps(st.TempsC)
+					}
 				}
 			}()
 		}
@@ -170,6 +199,12 @@ func main() {
 		if err := json.NewEncoder(response).Encode(result); err != nil {
 			log.Println("failed to write query response:", err)
 		}
+	})
+	heaterui.Register(http.DefaultServeMux, handler, func() (*heater.Controller, error) {
+		if heaterCtrl != nil {
+			return heaterCtrl, nil
+		}
+		return nil, heaterCtrlErr
 	})
 	http.HandleFunc("/control", func(writer http.ResponseWriter, request *http.Request) {
 		run := request.URL.Query().Get("run")
@@ -229,6 +264,9 @@ func main() {
 		bus1.Disconnect()
 		if wattMonitor != nil {
 			wattMonitor.Stop()
+		}
+		if heaterCtrl != nil {
+			heaterCtrl.Close()
 		}
 	}
 	log.Println("Exiting")

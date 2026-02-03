@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Battery Heater</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; }
+    .row { margin: 8px 0; }
+    .label { display: inline-block; min-width: 160px; }
+    .card { border: 1px solid #ddd; padding: 16px; border-radius: 8px; max-width: 520px; }
+  </style>
+</head>
+<body>
+  <h2>Battery Heater</h2>
+  <div class="card">
+    <div class="row">
+      <label class="label" for="autoMode">Auto Mode</label>
+      <input type="checkbox" id="autoMode">
+    </div>
+    <div class="row">
+      <label class="label" for="manualOn">Manual Heater</label>
+      <input type="checkbox" id="manualOn">
+    </div>
+    <div class="row"><span class="label">Heater Output</span><span id="heaterState">--</span></div>
+    <div class="row"><span class="label">Min Temp</span><span id="minTemp">--</span></div>
+    <div class="row"><span class="label">Temps</span><span id="temps">--</span></div>
+    <div class="row"><span class="label">Last Update</span><span id="lastUpdate">--</span></div>
+  </div>
+
+  <h3>Battery Stats</h3>
+  <div class="card">
+    <div class="row"><span class="label">SOC</span><span id="soc">--</span></div>
+    <div class="row"><span class="label">Voltage</span><span id="volts">--</span></div>
+    <div class="row"><span class="label">Current</span><span id="amps">--</span></div>
+    <div class="row"><span class="label">Temp</span><span id="temp">--</span></div>
+    <div class="row"><span class="label">Status</span><span id="status">--</span></div>
+    <div class="row"><span class="label">Timestamp</span><span id="batteryTs">--</span></div>
+  </div>
+
+  <script>
+    const autoMode = document.getElementById('autoMode');
+    const manualOn = document.getElementById('manualOn');
+
+    const statusUrl = new URL('/heater/status', window.location.origin);
+    const controlUrl = new URL('/heater/control', window.location.origin);
+
+    function setText(id, value) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.textContent = value;
+      }
+    }
+
+    function renderHeater(heater) {
+      if (!heater) {
+        return;
+      }
+      const isAuto = heater.mode === 'auto';
+      autoMode.checked = isAuto;
+      manualOn.disabled = isAuto;
+      manualOn.checked = heater.manual_on;
+
+      setText('heaterState', heater.on ? 'ON' : 'OFF');
+      if (heater.min_temp_c === null || heater.min_temp_c === undefined) {
+        setText('minTemp', '--');
+      } else {
+        setText('minTemp', heater.min_temp_c.toFixed(1) + ' C');
+      }
+      if (!heater.temps_c || heater.temps_c.length === 0) {
+        setText('temps', '--');
+      } else {
+        setText('temps', heater.temps_c.map(t => t.toFixed(1)).join(', ') + ' C');
+      }
+      if (!heater.last_update_at) {
+        setText('lastUpdate', '--');
+      } else {
+        setText('lastUpdate', heater.last_update_at);
+      }
+    }
+
+    function renderBattery(battery) {
+      if (!battery) {
+        return;
+      }
+      setText('soc', battery.has_soc ? battery.soc.toFixed(1) + ' %' : '--');
+      setText('volts', battery.has_voltage ? battery.volts.toFixed(2) + ' V' : '--');
+      setText('amps', battery.has_current ? battery.amps.toFixed(2) + ' A' : '--');
+      setText('temp', battery.has_temps ? battery.temp_c.toFixed(1) + ' C' : '--');
+      setText('status', battery.has_status_text ? battery.status : '--');
+      setText('batteryTs', battery.timestamp ? battery.timestamp : '--');
+    }
+
+    async function refresh() {
+      try {
+        const res = await fetch(statusUrl.toString(), { cache: 'no-store' });
+        const data = await res.json();
+        if (data.error) {
+          setText('heaterState', data.error);
+          return;
+        }
+        renderHeater(data.heater);
+        renderBattery(data.battery);
+      } catch (err) {
+        setText('heaterState', 'error loading status');
+      }
+    }
+
+    async function sendControl() {
+      const mode = autoMode.checked ? 'auto' : 'manual';
+      const payload = { mode: mode };
+      if (!autoMode.checked) {
+        payload.manual_on = manualOn.checked;
+      }
+      await fetch(controlUrl.toString(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      await refresh();
+    }
+
+    autoMode.addEventListener('change', () => {
+      sendControl();
+    });
+    manualOn.addEventListener('change', () => {
+      sendControl();
+    });
+
+    refresh();
+    setInterval(refresh, 3000);
+  </script>
+</body>
+</html>
